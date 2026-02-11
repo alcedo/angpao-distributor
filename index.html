@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Phantom DeFi Dashboard</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="card">
+      <h1>Phantom DeFi Dashboard</h1>
+      <p class="subtitle">Connect your Phantom wallet to view your public Solana address and SOL balance.</p>
+
+      <div class="actions">
+        <button id="connectButton" class="btn btn-primary">Connect Phantom Wallet</button>
+        <button id="disconnectButton" class="btn btn-secondary" disabled>Disconnect</button>
+      </div>
+
+      <section class="wallet-section">
+        <h2>Connected Address</h2>
+        <p id="walletAddress" class="wallet-address">Not connected</p>
+        <button id="copyAddressButton" class="btn btn-tertiary" disabled>Copy Address</button>
+      </section>
+
+      <section class="wallet-section metrics">
+        <div>
+          <h2>Network</h2>
+          <p id="networkValue" class="metric-value">Mainnet Beta</p>
+        </div>
+        <div>
+          <h2>SOL Balance</h2>
+          <p id="balanceValue" class="metric-value">--</p>
+        </div>
+      </section>
+
+      <p id="statusMessage" class="status" aria-live="polite"></p>
+    </main>
+
+    <script src="app.js" defer></script>
+  </body>
+</html>
