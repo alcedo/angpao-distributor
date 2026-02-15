@@ -256,6 +256,30 @@ export function createWalletGeneratorApp(options = {}) {
     );
   }
 
+  async function onCopyValueClick(event) {
+    const copyTarget = getCopyTarget(event?.target);
+    if (!copyTarget) {
+      return;
+    }
+
+    const value = getCopyValue(copyTarget);
+    if (!value) {
+      return;
+    }
+
+    try {
+      await copyToClipboard(value, globalRef.navigator, documentRef);
+      setStatus(elements.statusEl, "Copied full value to clipboard.");
+    } catch (error) {
+      console.error(error);
+      setStatus(
+        elements.statusEl,
+        "Copy failed. Browser clipboard permissions may be blocked.",
+        true,
+      );
+    }
+  }
+
   function onClusterChange(event) {
     const nextCluster = event.target.value;
     try {
@@ -334,6 +358,7 @@ export function createWalletGeneratorApp(options = {}) {
     onToggleKeys,
     onDownloadCsv,
     onDownloadJson,
+    onCopyValueClick,
   });
 
   bindNetworkWalletEvents(optionalElements, {
@@ -412,6 +437,84 @@ function downloadFile(filename, contents, mimeType, documentRef, UrlRef, BlobRef
   anchor.click();
   documentRef.body.removeChild(anchor);
   UrlRef.revokeObjectURL(url);
+}
+
+function getCopyTarget(eventTarget) {
+  if (!eventTarget) {
+    return null;
+  }
+
+  if (typeof eventTarget.closest === "function") {
+    return eventTarget.closest("[data-copy-value]");
+  }
+
+  if (eventTarget.dataset?.copyValue) {
+    return eventTarget;
+  }
+
+  return null;
+}
+
+function getCopyValue(target) {
+  if (!target) {
+    return "";
+  }
+
+  if (typeof target.getAttribute === "function") {
+    const value = target.getAttribute("data-copy-value");
+    if (value) {
+      return value;
+    }
+  }
+
+  return target.dataset?.copyValue || "";
+}
+
+function copyToClipboard(value, navigatorRef, documentRef) {
+  if (navigatorRef?.clipboard?.writeText) {
+    return navigatorRef.clipboard.writeText(value);
+  }
+
+  return legacyCopyToClipboard(value, documentRef);
+}
+
+function legacyCopyToClipboard(value, documentRef) {
+  return new Promise((resolve, reject) => {
+    if (!documentRef?.body || typeof documentRef.createElement !== "function") {
+      reject(new Error("No document copy fallback available."));
+      return;
+    }
+
+    const textarea = documentRef.createElement("textarea");
+    textarea.value = value;
+    if (typeof textarea.setAttribute === "function") {
+      textarea.setAttribute("readonly", "readonly");
+    }
+
+    if (textarea.style) {
+      textarea.style.position = "fixed";
+      textarea.style.left = "-9999px";
+    }
+
+    documentRef.body.appendChild(textarea);
+
+    if (typeof textarea.select === "function") {
+      textarea.select();
+    }
+
+    const didCopy =
+      typeof documentRef.execCommand === "function" &&
+      documentRef.execCommand("copy");
+
+    documentRef.body.removeChild(textarea);
+
+    if (didCopy) {
+      resolve();
+      return;
+    }
+
+    reject(new Error("Clipboard API unavailable."));
+  });
 }
 
 function escapeHtml(raw) {

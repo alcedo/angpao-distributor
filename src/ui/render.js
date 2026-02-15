@@ -22,14 +22,15 @@ export function renderWalletTable(tableBody, wallets, showPrivateKeys, escapeHtm
   const rows = wallets
     .map((wallet) => {
       const privateKeyCell = showPrivateKeys
-        ? wallet.privateKeyBase64
-        : "Click Reveal private keys to display";
+        ? renderCopyableValue(wallet.privateKeyBase64, 8, 6, escapeHtml)
+        : escapeHtml("Click Reveal private keys to display");
       const privateKeyClass = showPrivateKeys ? "" : "masked";
+      const publicAddressCell = renderCopyableValue(wallet.publicAddress, 4, 4, escapeHtml);
 
       return `<tr>
-        <td>${wallet.index}</td>
-        <td>${escapeHtml(wallet.publicAddress)}</td>
-        <td class="${privateKeyClass}">${escapeHtml(privateKeyCell)}</td>
+        <td class="table-mono">${wallet.index}</td>
+        <td>${publicAddressCell}</td>
+        <td class="${privateKeyClass} table-mono">${privateKeyCell}</td>
       </tr>`;
     })
     .join("");
@@ -79,4 +80,21 @@ function formatPublicKey(publicKey) {
     return publicKey;
   }
   return `${publicKey.slice(0, 4)}...${publicKey.slice(-4)}`;
+}
+
+function renderCopyableValue(value, leftChars, rightChars, escapeHtml) {
+  const truncated = middleTruncate(value, leftChars, rightChars);
+  return `<button type="button" class="copy-value" data-copy-value="${escapeHtml(value)}" title="Click to copy full value">${escapeHtml(truncated)}</button>`;
+}
+
+function middleTruncate(value, leftChars, rightChars) {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  if (value.length <= leftChars + rightChars + 3) {
+    return value;
+  }
+
+  return `${value.slice(0, leftChars)}...${value.slice(-rightChars)}`;
 }

@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="./styles.css" />
@@ -23,32 +23,36 @@
         </p>
 
         <div class="controls" aria-label="network and wallet scaffold">
-          <label for="cluster-select">Cluster</label>
-          <div class="row">
+          <div class="field-group">
+            <label for="cluster-select">Cluster</label>
             <select id="cluster-select" name="cluster">
               <option value="devnet">Devnet</option>
               <option value="testnet">Testnet</option>
               <option value="mainnet-beta">Mainnet Beta</option>
             </select>
-            <button id="phantom-connect-btn" type="button" disabled>Connect Phantom</button>
           </div>
+          <button id="phantom-connect-btn" type="button" class="secondary-btn" disabled>
+            Connect Phantom
+          </button>
           <p id="phantom-status" class="status">Phantom integration is scaffolded for Phase 1.</p>
         </div>
 
         <form id="generator-form" class="controls">
-          <label for="wallet-count">Number of wallets</label>
-          <div class="row">
-            <input
-              id="wallet-count"
-              name="walletCount"
-              type="number"
-              min="1"
-              max="100"
-              step="1"
-              value="10"
-              required
-            />
-            <button type="submit" id="generate-btn">Generate Wallets</button>
+          <div class="field-group">
+            <label for="wallet-count">Number of wallets</label>
+            <div class="row">
+              <input
+                id="wallet-count"
+                name="walletCount"
+                type="number"
+                min="1"
+                max="100"
+                step="1"
+                value="10"
+                required
+              />
+              <button type="submit" id="generate-btn">Generate Wallets</button>
+            </div>
           </div>
         </form>
 
