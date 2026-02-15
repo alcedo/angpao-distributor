@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Solana Wallet Batch Generator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="panel">
+        <p class="eyebrow">Solana Web3 Toolkit</p>
+        <h1>Wallet Batch Generator</h1>
+        <p class="lead">
+          Generate multiple Solana wallet addresses and export them as CSV or JSON.
+          Keys are generated locally in your browser.
+        </p>
+
+        <form id="generator-form" class="controls">
+          <label for="wallet-count">Number of wallets</label>
+          <div class="row">
+            <input
+              id="wallet-count"
+              name="walletCount"
+              type="number"
+              min="1"
+              max="5000"
+              step="1"
+              value="10"
+              required
+            />
+            <button type="submit" id="generate-btn">Generate Wallets</button>
+          </div>
+        </form>
+
+        <div class="actions">
+          <button id="toggle-keys-btn" type="button" disabled>Reveal private keys</button>
+          <button id="download-csv-btn" type="button" disabled>Download CSV</button>
+          <button id="download-json-btn" type="button" disabled>Download JSON</button>
+          <button id="clear-btn" type="button" disabled>Clear</button>
+        </div>
+
+        <p id="status" class="status">Ready.</p>
+      </section>
+
+      <section class="panel results-panel">
+        <div class="results-head">
+          <h2>Generated Wallets</h2>
+          <span id="count-badge" class="badge">0 wallets</span>
+        </div>
+        <p class="warning">
+          Never share private keys with anyone. If these are for testing only, use
+          Devnet funds.
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Public Address</th>
+                <th>Private Key (Base64)</th>
+              </tr>
+            </thead>
+            <tbody id="wallet-table-body">
+              <tr>
+                <td colspan="3" class="empty">No wallets generated yet.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <script defer src="https://unpkg.com/@solana/web3.js@1.98.2/lib/index.iife.min.js"></script>
+    <script defer src="./app.js"></script>
+  </body>
+</html>
