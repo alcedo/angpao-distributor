@@ -170,8 +170,15 @@ button:disabled {
   width: 100%;
 }
 
+.inline-secondary-btn {
+  color: var(--text);
+  background: #263243;
+  border-color: var(--border);
+}
+
 .secondary-btn:hover:not(:disabled),
-.actions button:hover:not(:disabled) {
+.actions button:hover:not(:disabled),
+.inline-secondary-btn:hover:not(:disabled) {
   background: #324158;
   box-shadow: 0 6px 16px rgba(15, 23, 42, 0.45);
 }
@@ -294,6 +301,20 @@ tbody tr:hover {
 .warning {
   margin-top: 0.4rem;
   font-size: 0.9rem;
+}
+
+.field-hint {
+  margin: 0 0 0.5rem;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.diagnostics {
+  margin: 0.4rem 0 0;
+  padding-left: 1.2rem;
+  color: #fecaca;
+  font-size: 0.82rem;
+  line-height: 1.4;
 }
 
 @keyframes rise {

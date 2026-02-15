@@ -63,6 +63,24 @@
           <button id="clear-btn" type="button" disabled>Clear</button>
         </div>
 
+        <div class="controls">
+          <div class="field-group">
+            <label for="recipients-csv-input">Import CSV recipients</label>
+            <p class="field-hint">
+              Use a CSV with an address/publicKey column (or first column as address).
+            </p>
+            <div class="row">
+              <input id="recipients-csv-input" type="file" accept=".csv,text/csv" />
+              <button id="import-recipients-btn" type="button">Import Recipients</button>
+              <button id="clear-recipients-btn" type="button" class="inline-secondary-btn" disabled>
+                Clear Imported
+              </button>
+            </div>
+          </div>
+          <p id="recipient-summary" class="status">No CSV recipients imported.</p>
+          <ul id="recipient-diagnostics" class="diagnostics"></ul>
+        </div>
+
         <p id="status" class="status">Ready.</p>
       </section>
 

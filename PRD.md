@@ -134,10 +134,13 @@ Legend: `Not Started` | `Scaffolded` | `Partially Complete` | `Complete`
   - Phantom provider detection and connect/disconnect flows are implemented.
   - Cluster connection context is maintained in app state.
   - Mint/distribution actions are still unimplemented, so end-to-end cluster-scoped token workflows are not complete yet.
-- Recipient Management: `Partially Complete`
+- Recipient Management: `Complete`
   - Generated wallet creation and CSV/JSON wallet export are implemented.
   - PRD-aligned generation cap (`1..100`) is implemented.
-  - CSV recipient import, validation, and deduplication are not implemented yet.
+  - CSV recipient import is implemented with address/publicKey header detection and first-column fallback.
+  - Solana address validation and duplicate-recipient merging are implemented for CSV imports.
+  - Invalid CSV rows are rejected and shown to user with per-line diagnostics.
+  - Unified mixed generated + CSV recipient run-set wiring is implemented with cross-source deduplication.
 - Token Minting (All 3 Clusters): `Not Started`
 - Distribution: `Not Started`
 - Mainnet Safety Guardrails: `Not Started`

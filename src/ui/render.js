@@ -75,6 +75,46 @@ export function renderNetworkWalletState(optionalElements, model) {
   }
 }
 
+export function renderRecipientImportState(optionalElements, model) {
+  const {
+    generatedCount,
+    importedCount,
+    runReadyCount,
+    runSetDuplicateCount,
+    invalidRows,
+    duplicateCount,
+  } = model;
+
+  if (optionalElements.recipientSummary) {
+    const runSetSummary =
+      `Run set: ${runReadyCount} unique recipient(s)` +
+      ` (${generatedCount} generated + ${importedCount} imported` +
+      `${runSetDuplicateCount ? `, ${runSetDuplicateCount} cross-source duplicate(s) skipped` : ""}).`;
+    const csvSummary =
+      ` CSV import: ${importedCount} valid, ${invalidRows.length} invalid row(s), ` +
+      `${duplicateCount} duplicate row(s) skipped.`;
+    optionalElements.recipientSummary.textContent = runSetSummary + csvSummary;
+  }
+
+  if (optionalElements.clearRecipientsBtn) {
+    optionalElements.clearRecipientsBtn.disabled = importedCount === 0;
+  }
+
+  if (optionalElements.recipientDiagnostics) {
+    if (!invalidRows.length) {
+      optionalElements.recipientDiagnostics.innerHTML = "";
+      return;
+    }
+
+    optionalElements.recipientDiagnostics.innerHTML = invalidRows
+      .map(
+        (row) =>
+          `<li>Line ${row.line}: ${escapeHtml(row.reason)} ${row.value ? `(${escapeHtml(row.value)})` : ""}</li>`,
+      )
+      .join("");
+  }
+}
+
 function formatPublicKey(publicKey) {
   if (publicKey.length <= 12) {
     return publicKey;
@@ -85,6 +125,15 @@ function formatPublicKey(publicKey) {
 function renderCopyableValue(value, leftChars, rightChars, escapeHtml) {
   const truncated = middleTruncate(value, leftChars, rightChars);
   return `<button type="button" class="copy-value" data-copy-value="${escapeHtml(value)}" title="Click to copy full value">${escapeHtml(truncated)}</button>`;
+}
+
+function escapeHtml(raw) {
+  return String(raw)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }
 
 function middleTruncate(value, leftChars, rightChars) {

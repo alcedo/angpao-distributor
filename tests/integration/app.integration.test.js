@@ -21,6 +21,7 @@ function createMockElement(initial = {}) {
     textContent: initial.textContent || "",
     innerHTML: initial.innerHTML || "",
     disabled: Boolean(initial.disabled),
+    files: initial.files || [],
     href: "",
     download: "",
     classList: {
@@ -81,6 +82,11 @@ function createMockDocument() {
     "cluster-select": createMockElement({ value: "devnet" }),
     "phantom-connect-btn": createMockElement({ disabled: true }),
     "phantom-status": createMockElement(),
+    "recipients-csv-input": createMockElement(),
+    "import-recipients-btn": createMockElement(),
+    "clear-recipients-btn": createMockElement({ disabled: true }),
+    "recipient-summary": createMockElement({ textContent: "No CSV recipients imported." }),
+    "recipient-diagnostics": createMockElement(),
   };
 
   const bodyChildren = [];
@@ -107,7 +113,7 @@ function createMockDocument() {
   return { documentRef, elements };
 }
 
-function createMockKeypairGenerator() {
+function createMockKeypairGenerator(publicKeys = []) {
   let counter = 0;
   return {
     generate() {
@@ -115,7 +121,7 @@ function createMockKeypairGenerator() {
       return {
         publicKey: {
           toBase58() {
-            return `pub-${counter}`;
+            return publicKeys[counter - 1] || `pub-${counter}`;
           },
         },
         secretKey: new Uint8Array([counter, counter + 1, counter + 2]),
@@ -331,5 +337,76 @@ describe("createWalletGeneratorApp", () => {
     expect(elements["clear-btn"].disabled).toBe(true);
     expect(elements["wallet-count"].value).toBe("10");
     expect(elements["wallet-table-body"].innerHTML).toMatch(/No wallets generated yet/);
+  });
+
+  it("imports CSV recipients and shows diagnostics", async () => {
+    const { documentRef, elements } = createMockDocument();
+    const app = createWalletGeneratorApp({
+      document: documentRef,
+      keypair: createMockKeypairGenerator(),
+      phantomProvider: createMockPhantomProvider(),
+      createConnectionContext,
+    });
+
+    elements["recipients-csv-input"].files = [
+      {
+        async text() {
+          return [
+            "address",
+            "11111111111111111111111111111111",
+            "invalid-key",
+            "11111111111111111111111111111111",
+          ].join("\n");
+        },
+      },
+    ];
+
+    await elements["import-recipients-btn"].dispatchEvent(createEvent("click"));
+
+    expect(app.getState().importedRecipients).toHaveLength(1);
+    expect(app.getState().recipientImport.invalidRows).toHaveLength(1);
+    expect(app.getState().recipientImport.duplicateCount).toBe(1);
+    expect(elements["recipient-summary"].textContent).toMatch(/Run set: 1 unique recipient/);
+    expect(elements["clear-recipients-btn"].disabled).toBe(false);
+    expect(elements.status.textContent).toMatch(
+      /Recipient import complete: 1 valid, 1 invalid, 1 duplicates skipped. Run set now has 1 unique recipient\(s\)\./,
+    );
+  });
+
+  it("builds a mixed generated and csv run set with cross-source dedupe", async () => {
+    const { documentRef, elements } = createMockDocument();
+    createWalletGeneratorApp({
+      document: documentRef,
+      keypair: createMockKeypairGenerator([
+        "11111111111111111111111111111111",
+      ]),
+      phantomProvider: createMockPhantomProvider(),
+      createConnectionContext,
+      requestAnimationFrame: (callback) => callback(),
+      base64Encode: (binary) => Buffer.from(binary, "binary").toString("base64"),
+    });
+
+    elements["wallet-count"].value = "1";
+    await elements["generator-form"].dispatchEvent(createEvent("submit"));
+
+    elements["recipients-csv-input"].files = [
+      {
+        async text() {
+          return [
+            "address",
+            "11111111111111111111111111111111",
+            "So11111111111111111111111111111111111111112",
+          ].join("\n");
+        },
+      },
+    ];
+
+    await elements["import-recipients-btn"].dispatchEvent(createEvent("click"));
+
+    expect(elements["recipient-summary"].textContent).toMatch(/Run set: 2 unique recipient/);
+    expect(elements["recipient-summary"].textContent).toMatch(
+      /1 cross-source duplicate\(s\) skipped/,
+    );
+    expect(elements.status.textContent).toMatch(/Run set now has 2 unique recipient\(s\)\./);
   });
 });

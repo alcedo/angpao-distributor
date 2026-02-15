@@ -18,7 +18,7 @@ This plan is implementation-ready and includes test coverage requirements mapped
 | --- | --- |
 | Phase 0: Bootstrap and Refactor Foundation | Complete |
 | Phase 1: Cluster and Phantom Connectivity | Complete |
-| Phase 2: Recipient Management (Generated + CSV) | Not Started |
+| Phase 2: Recipient Management (Generated + CSV) | Complete |
 | Phase 3: Token Discovery and Mint Wizard | Not Started |
 | Phase 4: Distribution Planning and Guardrails | Not Started |
 | Phase 5: Sequential Distribution Execution + Manual Retry | Not Started |
@@ -45,12 +45,25 @@ This plan is implementation-ready and includes test coverage requirements mapped
 - [x] Run and pass `npm test`.
 - [x] Run and pass `npm run build`.
 
+### Phase 2 Task Checklist
+- [x] Keep generated wallets flow with cap `1..100`.
+- [x] Add CSV import for recipients.
+- [x] Validate addresses and deduplicate recipients.
+- [x] Surface invalid row diagnostics in UI.
+- [x] Combine generated + CSV recipients into one run-ready deduplicated set.
+- [x] Add unit tests for CSV parsing and Solana address validation.
+- [x] Add integration test for CSV import flow.
+- [x] Add unit/integration coverage for mixed generated + CSV run-set dedupe.
+- [x] Run and pass `npm test`.
+- [x] Run and pass `npm run build`.
+
 ### Completed Artifacts
 - `package.json`
 - `vite.config.js`
 - `src/app.js`
 - `src/state/store.js`
 - `src/state/selectors.js`
+- `src/domain/csvRecipients.js`
 - `src/domain/validation.js`
 - `src/domain/exporters.js`
 - `src/solana/connection.js`
@@ -61,6 +74,7 @@ This plan is implementation-ready and includes test coverage requirements mapped
 - `tests/unit/validation.test.js`
 - `tests/unit/exporters.test.js`
 - `tests/unit/encoding.test.js`
+- `tests/unit/csvRecipients.test.js`
 - `tests/unit/connection.test.js`
 - `tests/unit/phantomProvider.test.js`
 - `tests/unit/selectors.test.js`
@@ -72,20 +86,20 @@ This plan is implementation-ready and includes test coverage requirements mapped
 | Date (UTC) | Command | Result |
 | --- | --- | --- |
 | 2026-02-15 | `npm install` | Passed (local project dependency install complete) |
-| 2026-02-15 | `npm test` | Passed (24 tests across 7 test files) |
+| 2026-02-15 | `npm test` | Passed (33 tests across 8 test files) |
 | 2026-02-15 | `npm run build` | Passed (Vite production build succeeded) |
 
 ## 2) Current State and Gap
 Current repo capabilities:
 - modular single-page wallet generator (`src/*`, `index.html`, `styles.css`)
 - wallet generation + CSV/JSON export
+- CSV recipient import with address validation, deduplication, and invalid-row diagnostics
 - Vitest unit/integration suites
 
 Major gaps vs PRD:
 - no cluster-bound token listing
 - no token minting flow
 - no distribution engine
-- no CSV recipient import
 - no mainnet guardrail workflows for distribution
 - no transfer run reports
 

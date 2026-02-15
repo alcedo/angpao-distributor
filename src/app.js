@@ -1,6 +1,11 @@
 import { Keypair } from "@solana/web3.js";
 import { createStore } from "./state/store.js";
-import { canRunWalletRequiredActions, isWalletConnected } from "./state/selectors.js";
+import {
+  canRunWalletRequiredActions,
+  getRunRecipientStats,
+  isWalletConnected,
+} from "./state/selectors.js";
+import { parseRecipientsCsv } from "./domain/csvRecipients.js";
 import { serializeWalletsCsv, serializeWalletsJson } from "./domain/exporters.js";
 import { validateWalletCount } from "./domain/validation.js";
 import { createConnectionContext } from "./solana/connection.js";
@@ -9,9 +14,10 @@ import {
   disconnectPhantom,
   getPhantomProvider,
 } from "./solana/phantomProvider.js";
-import { bindNetworkWalletEvents, bindWalletEvents } from "./ui/events.js";
+import { bindNetworkWalletEvents, bindRecipientEvents, bindWalletEvents } from "./ui/events.js";
 import {
   renderNetworkWalletState,
+  renderRecipientImportState,
   renderWalletTable,
   setGeneratingState,
   setStatus,
@@ -35,6 +41,11 @@ const OPTIONAL_ELEMENT_IDS = {
   clusterSelect: "cluster-select",
   phantomConnectBtn: "phantom-connect-btn",
   phantomStatus: "phantom-status",
+  recipientsCsvInput: "recipients-csv-input",
+  importRecipientsBtn: "import-recipients-btn",
+  clearRecipientsBtn: "clear-recipients-btn",
+  recipientSummary: "recipient-summary",
+  recipientDiagnostics: "recipient-diagnostics",
 };
 
 const INITIAL_CLUSTER = "devnet";
@@ -111,6 +122,12 @@ export function createWalletGeneratorApp(options = {}) {
       publicKey: null,
     },
     connection: connectionContext,
+    importedRecipients: [],
+    recipientImport: {
+      invalidRows: [],
+      duplicateCount: 0,
+      totalRows: 0,
+    },
   });
 
   function getState() {
@@ -140,6 +157,19 @@ export function createWalletGeneratorApp(options = {}) {
       isConnected: isWalletConnected(state),
       publicKey: state.phantom.publicKey,
       canRunWalletRequiredActions: canRunWalletRequiredActions(state),
+    });
+  }
+
+  function refreshRecipientImportView() {
+    const state = getState();
+    const runRecipientStats = getRunRecipientStats(state);
+    renderRecipientImportState(optionalElements, {
+      generatedCount: runRecipientStats.generatedCount,
+      importedCount: runRecipientStats.importedCount,
+      runReadyCount: runRecipientStats.recipients.length,
+      runSetDuplicateCount: runRecipientStats.duplicatesSkipped,
+      invalidRows: state.recipientImport.invalidRows,
+      duplicateCount: state.recipientImport.duplicateCount,
     });
   }
 
@@ -191,6 +221,7 @@ export function createWalletGeneratorApp(options = {}) {
       const elapsedMs = Math.round(now() - start);
       setState({ ...getState(), generatedWallets });
       refreshWalletView();
+      refreshRecipientImportView();
       setStatus(
         elements.statusEl,
         `Generated ${validation.count} wallet(s) in ${elapsedMs}ms.`,
@@ -204,11 +235,25 @@ export function createWalletGeneratorApp(options = {}) {
   }
 
   function onClear() {
-    setState({ ...getState(), generatedWallets: [], showPrivateKeys: false });
+    setState({
+      ...getState(),
+      generatedWallets: [],
+      importedRecipients: [],
+      recipientImport: {
+        invalidRows: [],
+        duplicateCount: 0,
+        totalRows: 0,
+      },
+      showPrivateKeys: false,
+    });
     elements.walletCountInput.value = "10";
     elements.toggleKeysBtn.textContent = "Reveal private keys";
+    if (optionalElements.recipientsCsvInput) {
+      optionalElements.recipientsCsvInput.value = "";
+    }
     refreshWalletView();
-    setStatus(elements.statusEl, "Cleared generated wallets.");
+    refreshRecipientImportView();
+    setStatus(elements.statusEl, "Cleared generated wallets and imported recipients.");
   }
 
   function onToggleKeys() {
@@ -352,6 +397,66 @@ export function createWalletGeneratorApp(options = {}) {
     refreshNetworkWalletView();
   }
 
+  async function onImportRecipients() {
+    const fileInput = optionalElements.recipientsCsvInput;
+    const file = fileInput?.files?.[0];
+    if (!file) {
+      setStatus(elements.statusEl, "Choose a CSV file before importing recipients.", true);
+      return;
+    }
+
+    try {
+      const csvText = await readTextFile(file);
+      const parsed = parseRecipientsCsv(csvText);
+      const nextState = {
+        ...getState(),
+        importedRecipients: parsed.recipients,
+        recipientImport: {
+          invalidRows: parsed.invalidRows,
+          duplicateCount: parsed.duplicateCount,
+          totalRows: parsed.totalRows,
+        },
+      };
+      setState(nextState);
+      const runRecipientStats = getRunRecipientStats(nextState);
+
+      refreshRecipientImportView();
+      setStatus(
+        elements.statusEl,
+        `Recipient import complete: ${parsed.recipients.length} valid, ` +
+          `${parsed.invalidRows.length} invalid, ${parsed.duplicateCount} duplicates skipped. ` +
+          `Run set now has ${runRecipientStats.recipients.length} unique recipient(s).`,
+      );
+    } catch (error) {
+      console.error(error);
+      setStatus(elements.statusEl, `Failed to import recipients CSV: ${error.message}`, true);
+    }
+  }
+
+  function onClearRecipients() {
+    const nextState = {
+      ...getState(),
+      importedRecipients: [],
+      recipientImport: {
+        invalidRows: [],
+        duplicateCount: 0,
+        totalRows: 0,
+      },
+    };
+    setState(nextState);
+    const runRecipientStats = getRunRecipientStats(nextState);
+
+    if (optionalElements.recipientsCsvInput) {
+      optionalElements.recipientsCsvInput.value = "";
+    }
+
+    refreshRecipientImportView();
+    setStatus(
+      elements.statusEl,
+      `Cleared imported recipients. Run set now has ${runRecipientStats.recipients.length} unique recipient(s).`,
+    );
+  }
+
   bindWalletEvents(elements, {
     onGenerateSubmit,
     onClear,
@@ -366,8 +471,14 @@ export function createWalletGeneratorApp(options = {}) {
     onPhantomConnectToggle,
   });
 
+  bindRecipientEvents(optionalElements, {
+    onImportRecipients,
+    onClearRecipients,
+  });
+
   refreshWalletView();
   refreshNetworkWalletView();
+  refreshRecipientImportView();
   setGeneratingState(elements, false, hasWeb3);
 
   if (!hasWeb3) {
@@ -529,5 +640,22 @@ function escapeHtml(raw) {
 function nextFrame(requestFrame) {
   return new Promise((resolve) => {
     requestFrame(() => resolve());
+  });
+}
+
+function readTextFile(fileRef) {
+  if (!fileRef) {
+    return Promise.resolve("");
+  }
+
+  if (typeof fileRef.text === "function") {
+    return fileRef.text();
+  }
+
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Unable to read file contents."));
+    reader.readAsText(fileRef);
   });
 }

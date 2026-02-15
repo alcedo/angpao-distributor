@@ -1,3 +1,5 @@
+import { PublicKey } from "@solana/web3.js";
+
 export const CLUSTERS = ["devnet", "testnet", "mainnet-beta"];
 
 export function validateWalletCount(rawCount) {
@@ -19,4 +21,18 @@ export function validateWalletCount(rawCount) {
     ok: true,
     count,
   };
+}
+
+export function isValidSolanaAddress(rawAddress) {
+  const address = String(rawAddress || "").trim();
+  if (!address) {
+    return false;
+  }
+
+  try {
+    const parsed = new PublicKey(address);
+    return parsed.toBase58() === address;
+  } catch (_error) {
+    return false;
+  }
 }

@@ -19,3 +19,13 @@ export function bindNetworkWalletEvents(optionalElements, handlers) {
     );
   }
 }
+
+export function bindRecipientEvents(optionalElements, handlers) {
+  if (optionalElements.importRecipientsBtn) {
+    optionalElements.importRecipientsBtn.addEventListener("click", handlers.onImportRecipients);
+  }
+
+  if (optionalElements.clearRecipientsBtn) {
+    optionalElements.clearRecipientsBtn.addEventListener("click", handlers.onClearRecipients);
+  }
+}
