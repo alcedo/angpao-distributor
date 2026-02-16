@@ -48,6 +48,7 @@ Implication:
 - Clusters: `devnet`, `testnet`, `mainnet-beta`.
 - Phantom connect/disconnect required for minting/distribution actions.
 - All data/actions are cluster-scoped.
+- Upon successful Phantom connect, app loads existing classic SPL token holdings for the connected wallet on the selected cluster.
 
 ### 2) Recipient Management
 - Generate wallets client-side and export CSV/JSON.
@@ -63,6 +64,7 @@ Implication:
 
 ### 4) Distribution
 - User selects token from Phantom holdings.
+- Token selector is populated from connected wallet SPL holdings and becomes available immediately after Phantom connect.
 - User enters total amount; app computes equal split in base units.
 - Sequential execution (recipient by recipient).
 - Create recipient ATA when missing.
@@ -116,6 +118,7 @@ Implication:
 
 ### Integration
 - Phantom connect/disconnect state changes.
+- SPL token inventory is fetched on Phantom connect and rendered in token selector.
 - Mint wizard flow per cluster.
 - Token inventory refresh after mint.
 - Sequential transfer flow with mixed outcomes.
@@ -154,6 +157,7 @@ Legend: `Not Started` | `Scaffolded` | `Partially Complete` | `Complete`
 4. Distribution runs on all three clusters with correct isolation.
 5. Results are visible in-app and exportable as CSV/JSON.
 6. Private keys are not persisted unless explicitly exported.
+7. After Phantom connect, existing wallet SPL tokens are shown and selectable for disbursement to generated/imported recipients.
 
 ## Assumptions
 - “User need to have their own tokens” means users can either:

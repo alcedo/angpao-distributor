@@ -57,6 +57,19 @@ This plan is implementation-ready and includes test coverage requirements mapped
 - [x] Run and pass `npm test`.
 - [x] Run and pass `npm run build`.
 
+### Phase 3 Task Checklist
+- [ ] Add token inventory state (`idle | loading | ready | error`) and selected mint state.
+- [ ] On successful Phantom connect, fetch classic SPL token holdings for connected wallet on active cluster.
+- [ ] Render token selector states: loading, ready, empty, error.
+- [ ] Populate disbursement token selector from fetched holdings.
+- [ ] Clear token inventory + selection on Phantom disconnect.
+- [ ] Refresh token inventory on cluster change while connected.
+- [ ] Refresh token inventory after successful mint.
+- [ ] Add unit tests for token inventory normalization/filtering.
+- [ ] Add integration tests for connect-triggered token loading and selector rendering.
+- [ ] Run and pass `npm test`.
+- [ ] Run and pass `npm run build`.
+
 ### Completed Artifacts
 - `package.json`
 - `vite.config.js`
@@ -97,7 +110,7 @@ Current repo capabilities:
 - Vitest unit/integration suites
 
 Major gaps vs PRD:
-- no cluster-bound token listing
+- no automatic, cluster-scoped SPL token inventory fetch/render immediately after Phantom connect
 - no token minting flow
 - no distribution engine
 - no mainnet guardrail workflows for distribution
@@ -117,6 +130,11 @@ Major gaps vs PRD:
 - Persistence: in-memory only unless explicit export.
 - Confirmation policy: `confirmed`.
 - Distribution execution: sequential, manual retries only.
+- Token inventory fetch triggers: Phantom connect success, cluster change (when connected), mint success.
+- Token inventory scope: strict to `{cluster, connectedWalletPublicKey}`.
+- Inventory display set: classic SPL holdings with `balanceRaw > 0`.
+- Selector default: auto-select only when exactly one token exists; otherwise require explicit user selection.
+- Metadata policy (MVP): no external token list dependency; display mint + balance (+ symbol only if already available locally).
 
 ## 4) Target Project Structure
 ```
@@ -190,13 +208,18 @@ Exit criteria:
 
 ### Phase 3: Token Discovery and Mint Wizard
 Tasks:
-1. Load classic SPL token accounts for connected wallet.
-2. Implement mint wizard (create mint + ATA + mint supply).
-3. Add mainnet mint-risk acknowledgement.
-4. Refresh token inventory after mint.
+1. Fetch classic SPL token holdings immediately after Phantom connect.
+2. Store inventory in app state with loading/error semantics.
+3. Render token selector for distribution from wallet holdings.
+4. Implement mint wizard (create mint + ATA + mint supply).
+5. Refresh token inventory on mint success and cluster change while connected.
+6. Clear token inventory on disconnect.
 
 Exit criteria:
-- mint flow works on all clusters and refreshes selector.
+- Connecting Phantom populates token selector with existing SPL holdings for the selected cluster.
+- Token selector updates correctly on cluster switch and after mint.
+- Disconnect clears token selection/inventory.
+- Mint flow works on all clusters and refreshes selector.
 
 ### Phase 4: Distribution Planning and Guardrails
 Tasks:
@@ -247,6 +270,19 @@ export type TokenAsset = {
   symbol?: string,
 };
 
+export type TokenInventoryState = {
+  status: "idle" | "loading" | "ready" | "error",
+  items: TokenAsset[],
+  selectedMint: string | null,
+  loadedFor: { cluster: "devnet" | "testnet" | "mainnet-beta", owner: string } | null,
+  error?: string,
+};
+
+export type AppState = {
+  // existing fields...
+  tokenInventory: TokenInventoryState,
+};
+
 export type DistributionPlan = {
   cluster: "devnet" | "testnet" | "mainnet-beta",
   mint: string,
@@ -264,6 +300,10 @@ export type TransferResult = {
   error?: string,
   confirmedAt?: string,
 };
+
+export async function listWalletTokenAssets(connection, ownerPublicKey) {
+  // Contract: returns Promise<TokenAsset[]> in deterministic order for stable UI/tests.
+}
 ```
 
 ## 7) Test Strategy
@@ -275,9 +315,15 @@ export type TransferResult = {
 
 ### Mandatory Test Categories
 - Unit: validation, split logic, CSV/report serialization.
-- Integration: cluster switching, Phantom connect/disconnect, UI state gating.
+- Integration: cluster switching, Phantom connect/disconnect, connect-triggered SPL inventory fetch, selector render states, cluster-scoped refresh.
 - E2E: generate -> connect -> mint -> distribute -> export flow.
 - Manual QA: real Phantom verification on devnet/mainnet guardrails.
+- Integration: connect success -> `loading` -> `ready` inventory state transition.
+- Integration: token selector shows fetched tokens after connect.
+- Integration: connect with no token holdings shows empty-state guidance.
+- Integration: cluster switch while connected reloads inventory for new cluster.
+- Integration: disconnect clears inventory and disables token selector.
+- Unit: token inventory normalization (group/filter/sort) returns deterministic selector data.
 
 ## 8) Definition of Done
 Implementation is complete only when:
@@ -286,3 +332,4 @@ Implementation is complete only when:
 3. manual QA checks are signed off.
 4. no P0/P1 defects remain.
 5. setup/test/security docs are updated.
+6. On Phantom connect, existing SPL tokens are shown and selectable for disbursement (cluster-scoped).
