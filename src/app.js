@@ -24,6 +24,7 @@ import {
   bindMintEvents,
   bindNetworkWalletEvents,
   bindRecipientEvents,
+  bindTabEvents,
   bindTokenEvents,
   bindWalletEvents,
 } from "./ui/events.js";
@@ -73,6 +74,10 @@ const OPTIONAL_ELEMENT_IDS = {
   mintMainnetAcknowledge: "mint-mainnet-ack",
   mintMainnetHint: "mint-mainnet-hint",
   mintStatus: "mint-status",
+  toolTabWalletGenerator: "tool-tab-wallet-generator",
+  toolTabMintTestToken: "tool-tab-mint-test-token",
+  toolPanelWalletGenerator: "tool-panel-wallet-generator",
+  toolPanelMintTestToken: "tool-panel-mint-test-token",
 };
 
 const INITIAL_CLUSTER = "devnet";
@@ -229,6 +234,34 @@ export function createWalletGeneratorApp(options = {}) {
       error: state.mintWizard.error,
       lastMint: state.mintWizard.lastMint,
     });
+  }
+
+  function setActiveToolTab(tabName) {
+    const isWalletGeneratorTab = tabName !== "mint-test-token";
+    const walletTab = optionalElements.toolTabWalletGenerator;
+    const mintTab = optionalElements.toolTabMintTestToken;
+    const walletPanel = optionalElements.toolPanelWalletGenerator;
+    const mintPanel = optionalElements.toolPanelMintTestToken;
+
+    if (walletTab) {
+      walletTab.classList.toggle("active", isWalletGeneratorTab);
+      walletTab.ariaSelected = String(isWalletGeneratorTab);
+      walletTab.tabIndex = isWalletGeneratorTab ? 0 : -1;
+    }
+
+    if (mintTab) {
+      mintTab.classList.toggle("active", !isWalletGeneratorTab);
+      mintTab.ariaSelected = String(!isWalletGeneratorTab);
+      mintTab.tabIndex = isWalletGeneratorTab ? -1 : 0;
+    }
+
+    if (walletPanel) {
+      walletPanel.hidden = !isWalletGeneratorTab;
+    }
+
+    if (mintPanel) {
+      mintPanel.hidden = isWalletGeneratorTab;
+    }
   }
 
   async function generateWallets(count) {
@@ -856,11 +889,17 @@ export function createWalletGeneratorApp(options = {}) {
     onMintCreate,
   });
 
+  bindTabEvents(optionalElements, {
+    onSelectWalletGeneratorTab: () => setActiveToolTab("wallet-generator"),
+    onSelectMintTestTokenTab: () => setActiveToolTab("mint-test-token"),
+  });
+
   refreshWalletView();
   refreshNetworkWalletView();
   refreshRecipientImportView();
   refreshTokenInventoryView();
   refreshMintWizardView();
+  setActiveToolTab("wallet-generator");
   setGeneratingState(elements, false, hasWeb3);
 
   if (!hasWeb3) {

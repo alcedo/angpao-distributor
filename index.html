@@ -56,91 +56,134 @@
           </p>
         </div>
 
-        <form id="generator-form" class="controls">
-          <div class="field-group">
-            <label for="wallet-count">Number of wallets</label>
-            <div class="row">
-              <input
-                id="wallet-count"
-                name="walletCount"
-                type="number"
-                min="1"
-                max="100"
-                step="1"
-                value="10"
-                required
-              />
-              <button type="submit" id="generate-btn">Generate Wallets</button>
-            </div>
-          </div>
-        </form>
-
-        <div class="actions">
-          <button id="toggle-keys-btn" type="button" disabled>Reveal private keys</button>
-          <button id="download-csv-btn" type="button" disabled>Download CSV</button>
-          <button id="download-json-btn" type="button" disabled>Download JSON</button>
-          <button id="clear-btn" type="button" disabled>Clear</button>
+        <div class="tablist" role="tablist" aria-label="Tool sections">
+          <button
+            id="tool-tab-wallet-generator"
+            type="button"
+            class="tab-btn active"
+            role="tab"
+            aria-selected="true"
+            aria-controls="tool-panel-wallet-generator"
+          >
+            Wallet Generator
+          </button>
+          <button
+            id="tool-tab-mint-test-token"
+            type="button"
+            class="tab-btn"
+            role="tab"
+            aria-selected="false"
+            aria-controls="tool-panel-mint-test-token"
+          >
+            Mint Test Token
+          </button>
         </div>
 
-        <div class="controls">
-          <div class="field-group">
-            <label for="mint-initial-supply">Mint Wizard (Classic SPL)</label>
-            <p class="field-hint">
-              Create a new mint and mint initial supply into your connected Phantom wallet.
-            </p>
-            <div class="row">
-              <input
-                id="mint-initial-supply"
-                type="text"
-                inputmode="decimal"
-                value="1000"
-                placeholder="Initial supply (UI amount)"
-              />
-              <input
-                id="mint-decimals"
-                type="number"
-                min="0"
-                max="9"
-                step="1"
-                value="9"
-                aria-label="Token decimals"
-              />
-              <button id="mint-create-btn" type="button" class="inline-secondary-btn" disabled>
-                Create Mint + Mint Supply
-              </button>
+        <section
+          id="tool-panel-wallet-generator"
+          class="tab-panel"
+          role="tabpanel"
+          aria-labelledby="tool-tab-wallet-generator"
+        >
+          <form id="generator-form" class="controls">
+            <div class="field-group">
+              <label for="wallet-count">Number of wallets</label>
+              <div class="row">
+                <input
+                  id="wallet-count"
+                  name="walletCount"
+                  type="number"
+                  min="1"
+                  max="100"
+                  step="1"
+                  value="10"
+                  required
+                />
+                <button type="submit" id="generate-btn">Generate Wallets</button>
+              </div>
             </div>
-            <div class="row row-checkbox">
-              <input id="mint-mainnet-ack" type="checkbox" />
-              <label for="mint-mainnet-ack" class="checkbox-label">
-                I understand mainnet minting costs real SOL and cannot be undone.
-              </label>
-            </div>
-            <p id="mint-mainnet-hint" class="field-hint">
-              Mainnet mint-risk acknowledgement is only required on mainnet-beta.
-            </p>
-          </div>
-          <p id="mint-status" class="status">
-            Connect Phantom to create and mint a classic SPL token.
-          </p>
-        </div>
+          </form>
 
-        <div class="controls">
-          <div class="field-group">
-            <label for="recipients-csv-input">Import CSV recipients</label>
-            <p class="field-hint">
-              Use a CSV with an address/publicKey column (or first column as address).
-            </p>
-            <div class="row">
-              <input id="recipients-csv-input" type="file" accept=".csv,text/csv" />
-              <button id="import-recipients-btn" type="button">Import Recipients</button>
-              <button id="clear-recipients-btn" type="button" class="inline-secondary-btn" disabled>
-                Clear Imported
-              </button>
-            </div>
+          <div class="actions">
+            <button id="toggle-keys-btn" type="button" disabled>Reveal private keys</button>
+            <button id="download-csv-btn" type="button" disabled>Download CSV</button>
+            <button id="download-json-btn" type="button" disabled>Download JSON</button>
+            <button id="clear-btn" type="button" disabled>Clear</button>
           </div>
-          <p id="recipient-summary" class="status">No CSV recipients imported.</p>
-          <ul id="recipient-diagnostics" class="diagnostics"></ul>
-        </div>
+
+          <div class="controls">
+            <div class="field-group">
+              <label for="recipients-csv-input">Import CSV recipients</label>
+              <p class="field-hint">
+                Use a CSV with an address/publicKey column (or first column as address).
+              </p>
+              <div class="row">
+                <input id="recipients-csv-input" type="file" accept=".csv,text/csv" />
+                <button id="import-recipients-btn" type="button">Import Recipients</button>
+                <button
+                  id="clear-recipients-btn"
+                  type="button"
+                  class="inline-secondary-btn"
+                  disabled
+                >
+                  Clear Imported
+                </button>
+              </div>
+            </div>
+            <p id="recipient-summary" class="status">No CSV recipients imported.</p>
+            <ul id="recipient-diagnostics" class="diagnostics"></ul>
+          </div>
+        </section>
+
+        <section
+          id="tool-panel-mint-test-token"
+          class="tab-panel"
+          role="tabpanel"
+          aria-labelledby="tool-tab-mint-test-token"
+          hidden
+        >
+          <div class="controls">
+            <div class="field-group">
+              <label for="mint-initial-supply">Mint Wizard (Classic SPL)</label>
+              <p class="field-hint">
+                Create a new mint and mint initial supply into your connected Phantom wallet.
+              </p>
+              <div class="row">
+                <input
+                  id="mint-initial-supply"
+                  type="text"
+                  inputmode="decimal"
+                  value="1000"
+                  placeholder="Initial supply (UI amount)"
+                />
+                <input
+                  id="mint-decimals"
+                  type="number"
+                  min="0"
+                  max="9"
+                  step="1"
+                  value="9"
+                  aria-label="Token decimals"
+                />
+                <button id="mint-create-btn" type="button" class="inline-secondary-btn" disabled>
+                  Create Mint + Mint Supply
+                </button>
+              </div>
+              <div class="row row-checkbox">
+                <input id="mint-mainnet-ack" type="checkbox" />
+                <label for="mint-mainnet-ack" class="checkbox-label">
+                  I understand mainnet minting costs real SOL and cannot be undone.
+                </label>
+              </div>
+              <p id="mint-mainnet-hint" class="field-hint">
+                Mainnet mint-risk acknowledgement is only required on mainnet-beta.
+              </p>
+            </div>
+            <p id="mint-status" class="status">
+              Connect Phantom to create and mint a classic SPL token.
+            </p>
+          </div>
+        </section>
 
         <p id="status" class="status">Ready.</p>
       </section>
