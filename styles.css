@@ -152,6 +152,20 @@ h2 {
   gap: 0.6rem;
 }
 
+.csv-import-row {
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.csv-import-row #recipients-csv-input {
+  flex: 1 1 18rem;
+  min-width: 0;
+}
+
+.csv-import-row button {
+  flex: 0 0 auto;
+}
+
 .row-checkbox {
   align-items: flex-start;
   margin-top: 0.65rem;
