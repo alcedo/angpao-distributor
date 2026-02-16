@@ -47,17 +47,10 @@ export function bindMintEvents(optionalElements, handlers) {
 }
 
 export function bindTabEvents(optionalElements, handlers) {
-  if (optionalElements.toolTabWalletGenerator) {
-    optionalElements.toolTabWalletGenerator.addEventListener(
-      "click",
-      handlers.onSelectWalletGeneratorTab,
-    );
-  }
-
   if (optionalElements.toolTabMintTestToken) {
     optionalElements.toolTabMintTestToken.addEventListener(
       "click",
-      handlers.onSelectMintTestTokenTab,
+      handlers.onToggleMintWorkflow,
     );
   }
 }

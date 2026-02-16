@@ -2,9 +2,9 @@
 
 ## Summary
 Build a client-only web app that lets a user:
-1. Generate Solana wallets in-browser.
-2. Connect Phantom.
-3. Create and mint their own classic SPL token to Phantom on Devnet, Testnet, and Mainnet.
+1. Connect Phantom on the selected cluster.
+2. Use a top-header `Mint Test Token` workflow to create/mint testing supply into the connected wallet.
+3. Return to the wallet/disbursement workflow to generate Solana wallets in-browser.
 4. Select a token in Phantom and distribute it equally to recipients.
 5. Run safely across all clusters with explicit mainnet guardrails.
 
@@ -51,22 +51,28 @@ Implication:
 - Upon successful Phantom connect, app loads existing classic SPL token holdings for the connected wallet on the selected cluster.
 - If Phantom is installed but locked, app must show explicit unlock guidance and block token-dependent actions until unlocked.
 
-### 2) Recipient Management
+### 2) Workflow Navigation
+- Minting is launched from a top-header `Mint Test Token` button.
+- Minting and wallet/disbursement are distinct workflows in the same page.
+- Entering mint workflow updates the top-header action label to `Back to Wallet Generator`.
+- Clicking `Back to Wallet Generator` returns to wallet/disbursement workflow without resetting mint inputs/status.
+
+### 3) Recipient Management
 - Generate wallets client-side and export CSV/JSON.
 - Import recipients from CSV.
 - Validate addresses and deduplicate recipients before run.
 
-### 3) Token Minting (All 3 Clusters)
-- Built-in mint wizard creates a classic SPL mint and mints initial supply to connected Phantom.
+### 4) Mint Test Token Workflow (All 3 Clusters)
+- Built-in mint wizard creates a classic SPL mint and mints initial testing supply to connected Phantom.
 - Mint authority remains connected Phantom wallet.
 - Mainnet minting requires explicit additional acknowledgement:
   - Real SOL cost.
   - Irreversible on-chain action.
 
-### 4) Distribution
+### 5) Distribution
 - User selects token from Phantom holdings.
 - Token selector is populated from connected wallet SPL holdings and becomes available immediately after Phantom connect.
-- Token selector is positioned near Phantom connect controls and shows token display name + balance for each option.
+- Token selector is positioned near Phantom connect controls in the wallet/disbursement workflow and shows token display name + balance for each option.
 - Token selector attempts to render token logo for each option; if logo cannot be resolved or loaded, app shows a placeholder icon.
 - For legacy SPL mints without Metaplex metadata (for example USDC), app must fallback to curated known-token metadata so name/logo still render.
 - Token-logo metadata URI fetch must process all discovered eligible tokens (no hard cap that drops tokens from logo resolution).
@@ -76,13 +82,13 @@ Implication:
 - Mark success at `confirmed`.
 - Manual retry supported for failed recipients.
 
-### 5) Mainnet Safety Guardrails
+### 6) Mainnet Safety Guardrails
 - Distribution requires:
   1. Explicit checklist acknowledgement.
   2. Preflight simulation pass.
 - Minting requires dedicated mint-risk acknowledgement (separate from distribution checklist).
 
-### 6) Reporting
+### 7) Reporting
 - On-screen run summary required.
 - Downloadable CSV and JSON required.
 - Each result row includes:
@@ -125,6 +131,9 @@ Implication:
 - Phantom connect/disconnect state changes.
 - SPL token inventory is fetched on Phantom connect and rendered in token selector.
 - Locked Phantom connect attempts surface unlock guidance.
+- Topbar `Mint Test Token` button toggles between mint workflow and wallet/disbursement workflow.
+- Entering mint workflow updates button label to `Back to Wallet Generator`; clicking again returns to wallet/disbursement.
+- Switching workflows preserves mint form values and mint status text.
 - Token selector options render token display name + balance and icon fallback behavior.
 - Legacy token fallback path (e.g., USDC without Metaplex metadata) renders expected token name/logo.
 - Wallets with more than 32 eligible SPL tokens still run metadata URI logo resolution across all discovered tokens.
@@ -154,7 +163,7 @@ Legend: `Not Started` | `Scaffolded` | `Partially Complete` | `Complete`
   - Solana address validation and duplicate-recipient merging are implemented for CSV imports.
   - Invalid CSV rows are rejected and shown to user with per-line diagnostics.
   - Unified mixed generated + CSV recipient run-set wiring is implemented with cross-source deduplication.
-- Token Minting (All 3 Clusters): `Complete`
+- Mint Test Token Workflow (All 3 Clusters): `Complete`
   - Mint wizard now creates classic SPL mint + ATA and mints initial supply via connected Phantom.
   - Mainnet minting requires explicit acknowledgement before submission.
 - Distribution: `Partially Complete`
@@ -171,19 +180,21 @@ Legend: `Not Started` | `Scaffolded` | `Partially Complete` | `Complete`
 ## Acceptance Criteria
 1. User can mint their own classic SPL token into Phantom on Devnet/Testnet/Mainnet.
 2. Mainnet minting is blocked until explicit mint-risk acknowledgement.
-3. User can distribute selected classic SPL token equally to generated/imported recipients.
-4. Distribution runs on all three clusters with correct isolation.
-5. Results are visible in-app and exportable as CSV/JSON.
-6. Private keys are not persisted unless explicitly exported.
-7. After Phantom connect, existing wallet SPL tokens are shown near Phantom connect controls and selectable for disbursement to generated/imported recipients.
-8. After the user selects an SPL token, that selected token becomes the run’s distribution token and is used for all recipients in the unified run set (both generated wallets and CSV-imported wallets).
-9. Token selector options display token name and balance, and each option uses token logo when available or a placeholder icon when logo loading fails.
-10. If Phantom is locked, the app clearly instructs the user to unlock Phantom before continuing.
-11. Legacy tokens that do not expose Metaplex metadata (such as USDC) still display correct token name/logo via curated metadata fallback.
-12. Token-logo metadata URI fetch does not stop at 32 tokens; it processes the full discovered token set for the connected wallet.
+3. Users access minting from a top-header `Mint Test Token` entrypoint and can return via `Back to Wallet Generator`.
+4. User can distribute selected classic SPL token equally to generated/imported recipients.
+5. Distribution runs on all three clusters with correct isolation.
+6. Results are visible in-app and exportable as CSV/JSON.
+7. Private keys are not persisted unless explicitly exported.
+8. After Phantom connect, existing wallet SPL tokens are shown near Phantom connect controls and selectable for disbursement to generated/imported recipients.
+9. After the user selects an SPL token, that selected token becomes the run’s distribution token and is used for all recipients in the unified run set (both generated wallets and CSV-imported wallets).
+10. Token selector options display token name and balance, and each option uses token logo when available or a placeholder icon when logo loading fails.
+11. If Phantom is locked, the app clearly instructs the user to unlock Phantom before continuing.
+12. Legacy tokens that do not expose Metaplex metadata (such as USDC) still display correct token name/logo via curated metadata fallback.
+13. Token-logo metadata URI fetch does not stop at 32 tokens; it processes the full discovered token set for the connected wallet.
 
 ## Assumptions
 - “User need to have their own tokens” means users can either:
   - bring existing tokens in Phantom, or
   - mint a new token in-app on the selected cluster.
+- `Mint Test Token` is a testing utility workflow and remains available on `devnet`, `testnet`, and `mainnet-beta` (with existing mainnet acknowledgement requirements).
 - Mainnet costs are paid by connected Phantom wallet.

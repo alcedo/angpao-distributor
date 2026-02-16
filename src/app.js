@@ -74,7 +74,6 @@ const OPTIONAL_ELEMENT_IDS = {
   mintMainnetAcknowledge: "mint-mainnet-ack",
   mintMainnetHint: "mint-mainnet-hint",
   mintStatus: "mint-status",
-  toolTabWalletGenerator: "tool-tab-wallet-generator",
   toolTabMintTestToken: "tool-tab-mint-test-token",
   toolPanelWalletGenerator: "tool-panel-wallet-generator",
   toolPanelMintTestToken: "tool-panel-mint-test-token",
@@ -169,6 +168,7 @@ export function createWalletGeneratorApp(options = {}) {
     },
     tokenInventory: createIdleTokenInventory(),
     mintWizard: createIdleMintWizardState(),
+    activeWorkflow: "wallet-disbursement",
   });
 
   function getState() {
@@ -236,32 +236,40 @@ export function createWalletGeneratorApp(options = {}) {
     });
   }
 
-  function setActiveToolTab(tabName) {
-    const isWalletGeneratorTab = tabName !== "mint-test-token";
-    const walletTab = optionalElements.toolTabWalletGenerator;
-    const mintTab = optionalElements.toolTabMintTestToken;
+  function renderActiveWorkflowView() {
+    const state = getState();
+    const isWalletWorkflow = state.activeWorkflow !== "mint-test-token";
+    const mintToggleButton = optionalElements.toolTabMintTestToken;
     const walletPanel = optionalElements.toolPanelWalletGenerator;
     const mintPanel = optionalElements.toolPanelMintTestToken;
 
-    if (walletTab) {
-      walletTab.classList.toggle("active", isWalletGeneratorTab);
-      walletTab.ariaSelected = String(isWalletGeneratorTab);
-      walletTab.tabIndex = isWalletGeneratorTab ? 0 : -1;
-    }
-
-    if (mintTab) {
-      mintTab.classList.toggle("active", !isWalletGeneratorTab);
-      mintTab.ariaSelected = String(!isWalletGeneratorTab);
-      mintTab.tabIndex = isWalletGeneratorTab ? -1 : 0;
+    if (mintToggleButton) {
+      mintToggleButton.textContent = isWalletWorkflow
+        ? "Mint Test Token"
+        : "Back to Wallet Generator";
+      mintToggleButton.ariaPressed = String(!isWalletWorkflow);
     }
 
     if (walletPanel) {
-      walletPanel.hidden = !isWalletGeneratorTab;
+      walletPanel.hidden = !isWalletWorkflow;
     }
 
     if (mintPanel) {
-      mintPanel.hidden = isWalletGeneratorTab;
+      mintPanel.hidden = isWalletWorkflow;
     }
+  }
+
+  function onToggleMintWorkflow() {
+    const state = getState();
+    const nextWorkflow =
+      state.activeWorkflow === "mint-test-token"
+        ? "wallet-disbursement"
+        : "mint-test-token";
+    setState({
+      ...state,
+      activeWorkflow: nextWorkflow,
+    });
+    renderActiveWorkflowView();
   }
 
   async function generateWallets(count) {
@@ -890,8 +898,7 @@ export function createWalletGeneratorApp(options = {}) {
   });
 
   bindTabEvents(optionalElements, {
-    onSelectWalletGeneratorTab: () => setActiveToolTab("wallet-generator"),
-    onSelectMintTestTokenTab: () => setActiveToolTab("mint-test-token"),
+    onToggleMintWorkflow,
   });
 
   refreshWalletView();
@@ -899,7 +906,7 @@ export function createWalletGeneratorApp(options = {}) {
   refreshRecipientImportView();
   refreshTokenInventoryView();
   refreshMintWizardView();
-  setActiveToolTab("wallet-generator");
+  renderActiveWorkflowView();
   setGeneratingState(elements, false, hasWeb3);
 
   if (!hasWeb3) {

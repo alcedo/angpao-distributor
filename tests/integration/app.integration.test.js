@@ -21,6 +21,7 @@ function createMockElement(initial = {}) {
     textContent: initial.textContent || "",
     innerHTML: initial.innerHTML || "",
     disabled: Boolean(initial.disabled),
+    hidden: Boolean(initial.hidden),
     checked: Boolean(initial.checked),
     open: Boolean(initial.open),
     src: initial.src || "",
@@ -84,6 +85,7 @@ function createMockDocument() {
     "download-json-btn": createMockElement({ disabled: true }),
     "cluster-select": createMockElement({ value: "devnet" }),
     "phantom-connect-btn": createMockElement({ disabled: true }),
+    "tool-tab-mint-test-token": createMockElement({ textContent: "Mint Test Token" }),
     "phantom-status": createMockElement(),
     "recipients-csv-input": createMockElement(),
     "import-recipients-btn": createMockElement(),
@@ -110,6 +112,8 @@ function createMockDocument() {
     "mint-status": createMockElement({
       textContent: "Connect Phantom to create and mint a classic SPL token.",
     }),
+    "tool-panel-wallet-generator": createMockElement({ hidden: false }),
+    "tool-panel-mint-test-token": createMockElement({ hidden: true }),
   };
 
   const bodyChildren = [];
@@ -337,6 +341,46 @@ describe("createWalletGeneratorApp", () => {
     expect(elements["token-inventory-status"].textContent).toMatch(
       /1 token mint\(s\) available for distribution/,
     );
+  });
+
+  it("toggles between wallet and mint workflows from topbar button", async () => {
+    const { documentRef, elements } = createMockDocument();
+    const app = createWalletGeneratorApp({
+      document: documentRef,
+      keypair: createMockKeypairGenerator(),
+      phantomProvider: createMockPhantomProvider({
+        publicKey: "So11111111111111111111111111111111111111112",
+      }),
+      createConnectionContext,
+    });
+
+    expect(app.getState().activeWorkflow).toBe("wallet-disbursement");
+    expect(elements["tool-tab-mint-test-token"].textContent).toBe("Mint Test Token");
+    expect(elements["tool-tab-mint-test-token"].ariaPressed).toBe("false");
+    expect(elements["tool-panel-wallet-generator"].hidden).toBe(false);
+    expect(elements["tool-panel-mint-test-token"].hidden).toBe(true);
+
+    elements["mint-initial-supply"].value = "100";
+    elements["mint-status"].textContent = "Mint failed: sample error";
+    await elements["tool-tab-mint-test-token"].dispatchEvent(createEvent("click"));
+
+    expect(app.getState().activeWorkflow).toBe("mint-test-token");
+    expect(elements["tool-tab-mint-test-token"].textContent).toBe(
+      "Back to Wallet Generator",
+    );
+    expect(elements["tool-tab-mint-test-token"].ariaPressed).toBe("true");
+    expect(elements["tool-panel-wallet-generator"].hidden).toBe(true);
+    expect(elements["tool-panel-mint-test-token"].hidden).toBe(false);
+
+    await elements["tool-tab-mint-test-token"].dispatchEvent(createEvent("click"));
+
+    expect(app.getState().activeWorkflow).toBe("wallet-disbursement");
+    expect(elements["tool-tab-mint-test-token"].textContent).toBe("Mint Test Token");
+    expect(elements["tool-tab-mint-test-token"].ariaPressed).toBe("false");
+    expect(elements["tool-panel-wallet-generator"].hidden).toBe(false);
+    expect(elements["tool-panel-mint-test-token"].hidden).toBe(true);
+    expect(elements["mint-initial-supply"].value).toBe("100");
+    expect(elements["mint-status"].textContent).toBe("Mint failed: sample error");
   });
 
   it("clicking token option row updates selected mint and closes picker", async () => {
@@ -735,5 +779,95 @@ describe("createWalletGeneratorApp", () => {
       /1 cross-source duplicate\(s\) skipped/,
     );
     expect(elements.status.textContent).toMatch(/Run set now has 2 unique recipient\(s\)\./);
+  });
+
+  it("clear imported recipients button resets imported state and diagnostics", async () => {
+    const { documentRef, elements } = createMockDocument();
+    const app = createWalletGeneratorApp({
+      document: documentRef,
+      keypair: createMockKeypairGenerator(),
+      phantomProvider: createMockPhantomProvider(),
+      createConnectionContext,
+    });
+
+    elements["recipients-csv-input"].value = "recipients.csv";
+    elements["recipients-csv-input"].files = [
+      {
+        async text() {
+          return ["address", "11111111111111111111111111111111"].join("\n");
+        },
+      },
+    ];
+    await elements["import-recipients-btn"].dispatchEvent(createEvent("click"));
+
+    expect(app.getState().importedRecipients).toHaveLength(1);
+    expect(elements["clear-recipients-btn"].disabled).toBe(false);
+
+    await elements["clear-recipients-btn"].dispatchEvent(createEvent("click"));
+
+    expect(app.getState().importedRecipients).toHaveLength(0);
+    expect(app.getState().recipientImport.invalidRows).toHaveLength(0);
+    expect(app.getState().recipientImport.duplicateCount).toBe(0);
+    expect(elements["recipients-csv-input"].value).toBe("");
+    expect(elements["clear-recipients-btn"].disabled).toBe(true);
+    expect(elements["recipient-summary"].textContent).toMatch(/Run set: 0 unique recipient/);
+    expect(elements.status.textContent).toMatch(/Cleared imported recipients/);
+  });
+
+  it("download CSV and JSON buttons trigger file downloads for generated wallets", async () => {
+    const { documentRef, elements } = createMockDocument();
+    const createdAnchors = [];
+    const objectUrls = [];
+    const revokedUrls = [];
+
+    documentRef.createElement = () => {
+      const anchor = createMockElement();
+      createdAnchors.push(anchor);
+      return anchor;
+    };
+
+    const UrlRef = {
+      createObjectURL(blob) {
+        objectUrls.push(blob);
+        return `blob:mock-${objectUrls.length}`;
+      },
+      revokeObjectURL(url) {
+        revokedUrls.push(url);
+      },
+    };
+
+    class BlobRef {
+      constructor(parts, options) {
+        this.parts = parts;
+        this.type = options.type;
+      }
+    }
+
+    createWalletGeneratorApp({
+      document: documentRef,
+      keypair: createMockKeypairGenerator(),
+      phantomProvider: createMockPhantomProvider(),
+      createConnectionContext,
+      requestAnimationFrame: (callback) => callback(),
+      base64Encode: (binary) => Buffer.from(binary, "binary").toString("base64"),
+      URL: UrlRef,
+      Blob: BlobRef,
+    });
+
+    elements["wallet-count"].value = "1";
+    await elements["generator-form"].dispatchEvent(createEvent("submit"));
+
+    await elements["download-csv-btn"].dispatchEvent(createEvent("click"));
+    await elements["download-json-btn"].dispatchEvent(createEvent("click"));
+
+    expect(createdAnchors).toHaveLength(2);
+    expect(createdAnchors[0].download).toBe("solana-wallets.csv");
+    expect(createdAnchors[0].href).toBe("blob:mock-1");
+    expect(createdAnchors[1].download).toBe("solana-wallets.json");
+    expect(createdAnchors[1].href).toBe("blob:mock-2");
+    expect(objectUrls).toHaveLength(2);
+    expect(objectUrls[0].type).toBe("text/csv;charset=utf-8");
+    expect(objectUrls[1].type).toBe("application/json;charset=utf-8");
+    expect(revokedUrls).toEqual(["blob:mock-1", "blob:mock-2"]);
   });
 });

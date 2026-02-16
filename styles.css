@@ -129,24 +129,6 @@ h2 {
   margin-top: 1rem;
 }
 
-.tablist {
-  display: flex;
-  gap: 0.5rem;
-  margin-top: 1rem;
-}
-
-.tab-btn {
-  flex: 1;
-  color: var(--muted);
-  background: #182234;
-  border: 1px solid var(--border);
-}
-
-.tab-btn.active {
-  color: var(--text);
-  background: #263243;
-}
-
 .tab-panel[hidden] {
   display: none;
 }
@@ -261,6 +243,10 @@ button:disabled {
   margin-top: 0;
   width: auto;
   white-space: nowrap;
+}
+
+.topbar-workflow-btn {
+  min-width: 12rem;
 }
 
 .inline-secondary-btn {
@@ -553,6 +539,10 @@ tbody tr:hover {
   .topbar-cluster select,
   .topbar-controls .secondary-btn {
     width: 100%;
+  }
+
+  .topbar-workflow-btn {
+    min-width: 0;
   }
 
   .shell {

@@ -17,4 +17,20 @@ describe("index layout", () => {
     expect(tokenSelectIndex).toBeGreaterThan(phantomConnectIndex);
     expect(tokenSelectIndex).toBeLessThan(recipientsIndex);
   });
+
+  it("places mint test token workflow button in the topbar controls", () => {
+    const testDir = dirname(fileURLToPath(import.meta.url));
+    const workspaceRoot = resolve(testDir, "../..");
+    const html = readFileSync(resolve(workspaceRoot, "index.html"), "utf8");
+
+    const topbarControlsIndex = html.indexOf('class="topbar-controls"');
+    const phantomConnectIndex = html.indexOf('id="phantom-connect-btn"');
+    const mintWorkflowButtonIndex = html.indexOf('id="tool-tab-mint-test-token"');
+    const oldWalletTabIndex = html.indexOf('id="tool-tab-wallet-generator"');
+
+    expect(topbarControlsIndex).toBeGreaterThan(-1);
+    expect(phantomConnectIndex).toBeGreaterThan(topbarControlsIndex);
+    expect(mintWorkflowButtonIndex).toBeGreaterThan(phantomConnectIndex);
+    expect(oldWalletTabIndex).toBe(-1);
+  });
 });
