@@ -121,6 +121,9 @@ Current repo capabilities:
 - modular single-page wallet generator (`src/*`, `index.html`, `styles.css`)
 - wallet generation + CSV/JSON export
 - CSV recipient import with address validation, deduplication, and invalid-row diagnostics
+- Phantom connect/disconnect with cluster-aware context (`devnet`, `testnet`, `mainnet-beta`)
+- connected-wallet classic SPL token inventory loading with token selector display metadata
+- classic SPL mint wizard (create mint + owner ATA + initial supply mint), including mainnet acknowledgement gating
 - Vitest unit/integration suites
 
 Major gaps vs PRD:

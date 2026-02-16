@@ -141,11 +141,12 @@ Implication:
 ## Implementation Progress
 Legend: `Not Started` | `Scaffolded` | `Partially Complete` | `Complete`
 
-- Networks + Wallet: `Partially Complete`
+- Networks + Wallet: `Complete`
   - Cluster selection is active for `devnet`, `testnet`, and `mainnet-beta`.
   - Phantom provider detection and connect/disconnect flows are implemented.
   - Cluster connection context is maintained in app state.
-  - Mint/distribution actions are still unimplemented, so end-to-end cluster-scoped token workflows are not complete yet.
+  - Connected-wallet SPL holdings load on connect and refresh on cluster change.
+  - Locked Phantom connect attempts surface explicit unlock guidance.
 - Recipient Management: `Complete`
   - Generated wallet creation and CSV/JSON wallet export are implemented.
   - PRD-aligned generation cap (`1..100`) is implemented.
@@ -153,12 +154,17 @@ Legend: `Not Started` | `Scaffolded` | `Partially Complete` | `Complete`
   - Solana address validation and duplicate-recipient merging are implemented for CSV imports.
   - Invalid CSV rows are rejected and shown to user with per-line diagnostics.
   - Unified mixed generated + CSV recipient run-set wiring is implemented with cross-source deduplication.
-- Token Minting (All 3 Clusters): `Partially Complete`
+- Token Minting (All 3 Clusters): `Complete`
   - Mint wizard now creates classic SPL mint + ATA and mints initial supply via connected Phantom.
   - Mainnet minting requires explicit acknowledgement before submission.
-  - Distribution-related mint usage and reporting are not implemented yet.
-- Distribution: `Not Started`
-- Mainnet Safety Guardrails: `Not Started`
+- Distribution: `Partially Complete`
+  - Distribution token selection from connected-wallet SPL holdings is implemented.
+  - Token options render display name + balance with logo/placeholder behavior.
+  - Legacy metadata fallback (for example USDC) and full-set metadata URI enrichment are implemented.
+  - Equal-split planning, transfer execution, ATA-on-send, and retry flows are not implemented yet.
+- Mainnet Safety Guardrails: `Partially Complete`
+  - Mainnet mint-risk acknowledgement is implemented for minting.
+  - Distribution checklist and preflight simulation gating are not implemented yet.
 - Reporting: `Not Started`
   - Run-level reporting/export for distribution outcomes is not implemented yet.
 
