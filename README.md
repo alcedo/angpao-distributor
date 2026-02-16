@@ -1,7 +1,7 @@
 # Solana Wallet Batch Generator
 
-Client-only web app for Solana wallet generation with Phase 1 network and Phantom
-connectivity scaffolding in place.
+Client-only web app for Solana wallet generation with cluster-aware Phantom
+connectivity, recipient import, and SPL token inventory discovery.
 
 ## Features (Current)
 
@@ -10,6 +10,8 @@ connectivity scaffolding in place.
 - Export generated wallets as CSV or JSON.
 - Select cluster (`devnet`, `testnet`, `mainnet-beta`).
 - Detect Phantom and connect/disconnect wallet.
+- Load connected wallet classic SPL token balances into a disbursement selector.
+- Mint a classic SPL token (create mint + ATA + initial supply) from the connected wallet.
 
 ## Run Locally
 
@@ -66,5 +68,5 @@ Published URL pattern:
 
 ## Roadmap Context
 
-- Current completion: Phase 0 and Phase 1 foundations.
-- Next phases: recipient CSV import, SPL token minting, and distribution engine.
+- Current completion: Phase 0 through Phase 3 token discovery + mint wizard.
+- Next phases: distribution planning/execution and reporting.

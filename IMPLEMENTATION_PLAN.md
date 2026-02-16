@@ -19,7 +19,7 @@ This plan is implementation-ready and includes test coverage requirements mapped
 | Phase 0: Bootstrap and Refactor Foundation | Complete |
 | Phase 1: Cluster and Phantom Connectivity | Complete |
 | Phase 2: Recipient Management (Generated + CSV) | Complete |
-| Phase 3: Token Discovery and Mint Wizard | Not Started |
+| Phase 3: Token Discovery and Mint Wizard | Complete |
 | Phase 4: Distribution Planning and Guardrails | Not Started |
 | Phase 5: Sequential Distribution Execution + Manual Retry | Not Started |
 | Phase 6: Reporting, Exports, and Final Hardening | Not Started |
@@ -58,17 +58,22 @@ This plan is implementation-ready and includes test coverage requirements mapped
 - [x] Run and pass `npm run build`.
 
 ### Phase 3 Task Checklist
-- [ ] Add token inventory state (`idle | loading | ready | error`) and selected mint state.
-- [ ] On successful Phantom connect, fetch classic SPL token holdings for connected wallet on active cluster.
-- [ ] Render token selector states: loading, ready, empty, error.
-- [ ] Populate disbursement token selector from fetched holdings.
-- [ ] Clear token inventory + selection on Phantom disconnect.
-- [ ] Refresh token inventory on cluster change while connected.
-- [ ] Refresh token inventory after successful mint.
-- [ ] Add unit tests for token inventory normalization/filtering.
-- [ ] Add integration tests for connect-triggered token loading and selector rendering.
-- [ ] Run and pass `npm test`.
-- [ ] Run and pass `npm run build`.
+- [x] Add token inventory state (`idle | loading | ready | error`) and selected mint state.
+- [x] On successful Phantom connect, fetch classic SPL token holdings for connected wallet on active cluster.
+- [x] If Phantom is locked, show explicit unlock guidance and keep token actions blocked.
+- [x] Render token selector states: loading, ready, empty, error.
+- [x] Populate disbursement token selector from fetched holdings near Phantom connect controls.
+- [x] Render token selector options with token name + balance.
+- [x] Render token logo in selector options when available, with placeholder fallback on image load failure.
+- [x] Add curated fallback metadata for legacy tokens without Metaplex metadata (e.g., USDC) so token name/logo still resolve.
+- [x] Remove hard metadata URI logo-fetch cap; process all discovered eligible tokens with bounded concurrency.
+- [x] Clear token inventory + selection on Phantom disconnect.
+- [x] Refresh token inventory on cluster change while connected.
+- [x] Refresh token inventory after successful mint.
+- [x] Add unit tests for token inventory normalization/filtering.
+- [x] Add integration tests for connect-triggered token loading and selector rendering.
+- [x] Run and pass `npm test`.
+- [x] Run and pass `npm run build`.
 
 ### Completed Artifacts
 - `package.json`
@@ -81,6 +86,8 @@ This plan is implementation-ready and includes test coverage requirements mapped
 - `src/domain/exporters.js`
 - `src/solana/connection.js`
 - `src/solana/phantomProvider.js`
+- `src/solana/tokenService.js`
+- `src/solana/mintService.js`
 - `src/ui/render.js`
 - `src/ui/events.js`
 - `index.html`
@@ -91,6 +98,8 @@ This plan is implementation-ready and includes test coverage requirements mapped
 - `tests/unit/connection.test.js`
 - `tests/unit/phantomProvider.test.js`
 - `tests/unit/selectors.test.js`
+- `tests/unit/tokenService.test.js`
+- `tests/unit/mintService.test.js`
 - `tests/integration/app.integration.test.js`
 - `tests/e2e/smoke.spec.js`
 - `README.md`
@@ -101,6 +110,11 @@ This plan is implementation-ready and includes test coverage requirements mapped
 | 2026-02-15 | `npm install` | Passed (local project dependency install complete) |
 | 2026-02-15 | `npm test` | Passed (33 tests across 8 test files) |
 | 2026-02-15 | `npm run build` | Passed (Vite production build succeeded) |
+| 2026-02-16 | `npm test` | Passed (43 tests across 10 test files, includes token inventory + mint wizard coverage) |
+| 2026-02-16 | `npm run build` | Passed (Vite production build succeeded after Phase 3 completion) |
+| 2026-02-16 | `npm test` | Passed (50 tests across 11 test files after token selector name/logo + fallback updates) |
+| 2026-02-16 | `npm run build` | Passed (Vite production build succeeded after token selector metadata/icon updates) |
+| 2026-02-16 | `npm test` | Passed (tokenService coverage includes USDC legacy fallback + >32-token logo-fetch scenario) |
 
 ## 2) Current State and Gap
 Current repo capabilities:
@@ -110,8 +124,6 @@ Current repo capabilities:
 - Vitest unit/integration suites
 
 Major gaps vs PRD:
-- no automatic, cluster-scoped SPL token inventory fetch/render immediately after Phantom connect
-- no token minting flow
 - no distribution engine
 - no mainnet guardrail workflows for distribution
 - no transfer run reports
@@ -134,7 +146,8 @@ Major gaps vs PRD:
 - Token inventory scope: strict to `{cluster, connectedWalletPublicKey}`.
 - Inventory display set: classic SPL holdings with `balanceRaw > 0`.
 - Selector default: auto-select only when exactly one token exists; otherwise require explicit user selection.
-- Metadata policy (MVP): no external token list dependency; display mint + balance (+ symbol only if already available locally).
+- Metadata policy (MVP): derive token display metadata from on-chain token metadata accounts + metadata URI payload when available; fallback to curated known-token metadata (e.g., USDC) when Metaplex metadata is missing; otherwise fallback to shortened mint + placeholder icon.
+- Metadata URI fetch policy: no hard token-count cap; fetch all discovered eligible token metadata URIs with bounded concurrency to avoid UI starvation on larger wallets.
 
 ## 4) Target Project Structure
 ```
@@ -210,14 +223,22 @@ Exit criteria:
 Tasks:
 1. Fetch classic SPL token holdings immediately after Phantom connect.
 2. Store inventory in app state with loading/error semantics.
-3. Render token selector for distribution from wallet holdings.
-4. Implement mint wizard (create mint + ATA + mint supply).
-5. Refresh token inventory on mint success and cluster change while connected.
-6. Clear token inventory on disconnect.
+3. Render token selector for distribution from wallet holdings near Phantom connect controls.
+4. Render each token option with token name + balance and logo/placeholder icon handling.
+5. Implement mint wizard (create mint + ATA + mint supply).
+6. Refresh token inventory on mint success and cluster change while connected.
+7. Clear token inventory on disconnect.
+8. Surface explicit Phantom unlock guidance when connect fails due locked wallet.
+9. Add curated fallback token metadata for legacy mints lacking Metaplex metadata.
+10. Ensure metadata URI logo enrichment runs across full discovered token set (no fixed 32-token cutoff).
 
 Exit criteria:
 - Connecting Phantom populates token selector with existing SPL holdings for the selected cluster.
 - Token selector updates correctly on cluster switch and after mint.
+- Token selector shows token name + balance and icon fallback behavior for every option.
+- Locked Phantom state is surfaced with clear unlock guidance.
+- Legacy tokens without Metaplex metadata (USDC class) still show stable name/logo via fallback metadata.
+- Wallets with >32 eligible tokens still get metadata URI logo enrichment across the full set.
 - Disconnect clears token selection/inventory.
 - Mint flow works on all clusters and refreshes selector.
 
@@ -267,7 +288,10 @@ export type TokenAsset = {
   decimals: number,
   balanceRaw: bigint,
   balanceUi: string,
+  name?: string,
   symbol?: string,
+  displayName: string,
+  logoUrl?: string,
 };
 
 export type TokenInventoryState = {
@@ -320,9 +344,13 @@ export async function listWalletTokenAssets(connection, ownerPublicKey) {
 - Manual QA: real Phantom verification on devnet/mainnet guardrails.
 - Integration: connect success -> `loading` -> `ready` inventory state transition.
 - Integration: token selector shows fetched tokens after connect.
+- Integration: token selector option rows show token name + balance and icon/placeholder rendering.
+- Unit: legacy-token fallback metadata path returns expected name/logo for USDC-style mints without Metaplex metadata.
+- Unit: metadata URI fetch path covers >32 discovered tokens (no hard cap regression).
 - Integration: connect with no token holdings shows empty-state guidance.
 - Integration: cluster switch while connected reloads inventory for new cluster.
 - Integration: disconnect clears inventory and disables token selector.
+- Integration: locked Phantom connect error shows unlock guidance.
 - Unit: token inventory normalization (group/filter/sort) returns deterministic selector data.
 
 ## 8) Definition of Done
@@ -332,4 +360,4 @@ Implementation is complete only when:
 3. manual QA checks are signed off.
 4. no P0/P1 defects remain.
 5. setup/test/security docs are updated.
-6. On Phantom connect, existing SPL tokens are shown and selectable for disbursement (cluster-scoped).
+6. On Phantom connect, existing SPL tokens are shown and selectable for disbursement (cluster-scoped), with name + balance labels and icon placeholder fallback near Phantom controls, including legacy-token fallback metadata and >32-token logo-enrichment coverage.

@@ -98,6 +98,11 @@ h2 {
   gap: 0.6rem;
 }
 
+.row-checkbox {
+  align-items: flex-start;
+  margin-top: 0.65rem;
+}
+
 input,
 select,
 button {
@@ -116,6 +121,16 @@ select {
 
 input {
   flex: 1;
+}
+
+#mint-decimals {
+  max-width: 7.5rem;
+}
+
+input[type="checkbox"] {
+  flex: 0 0 auto;
+  width: auto;
+  margin-top: 0.2rem;
 }
 
 select {
@@ -307,6 +322,115 @@ tbody tr:hover {
   margin: 0 0 0.5rem;
   color: var(--muted);
   font-size: 0.86rem;
+}
+
+.checkbox-label {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
+
+.token-picker {
+  margin: 0;
+}
+
+.token-picker[open] .token-picker-summary {
+  border-color: var(--accent);
+  outline: 2px solid var(--accent-focus);
+}
+
+.token-picker.disabled {
+  opacity: 0.72;
+}
+
+.token-picker.disabled .token-picker-summary {
+  cursor: not-allowed;
+}
+
+.token-picker-summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--text);
+  background: #111827;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.65rem 0.75rem;
+  cursor: pointer;
+}
+
+.token-picker-summary::-webkit-details-marker {
+  display: none;
+}
+
+.token-picker-summary::after {
+  content: "▾";
+  margin-left: auto;
+  color: var(--muted);
+}
+
+.token-picker-icon {
+  width: 1.2rem;
+  height: 1.2rem;
+  border-radius: 999px;
+  flex-shrink: 0;
+  object-fit: cover;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+}
+
+.token-option-list {
+  margin: 0.45rem 0 0;
+  padding: 0.35rem;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #0f172a;
+  max-height: 14rem;
+  overflow-y: auto;
+}
+
+.token-option-item + .token-option-item {
+  margin-top: 0.2rem;
+}
+
+.token-option-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 0.45rem 0.5rem;
+  cursor: pointer;
+  font-weight: 500;
+  text-align: left;
+}
+
+.token-option-btn:hover {
+  background: rgba(20, 241, 149, 0.09);
+}
+
+.token-option-btn.selected {
+  border-color: rgba(20, 241, 149, 0.6);
+  background: rgba(20, 241, 149, 0.12);
+}
+
+.token-option-name {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.token-option-balance {
+  color: var(--muted);
+  font-family: "JetBrains Mono", "Fira Code", "Roboto Mono", monospace;
+  font-size: 0.8rem;
 }
 
 .diagnostics {

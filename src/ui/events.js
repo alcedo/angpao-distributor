@@ -29,3 +29,19 @@ export function bindRecipientEvents(optionalElements, handlers) {
     optionalElements.clearRecipientsBtn.addEventListener("click", handlers.onClearRecipients);
   }
 }
+
+export function bindTokenEvents(optionalElements, handlers) {
+  if (optionalElements.tokenMintSelect) {
+    optionalElements.tokenMintSelect.addEventListener("change", handlers.onTokenSelectionChange);
+  }
+
+  if (optionalElements.tokenOptionList) {
+    optionalElements.tokenOptionList.addEventListener("click", handlers.onTokenOptionPick);
+  }
+}
+
+export function bindMintEvents(optionalElements, handlers) {
+  if (optionalElements.mintCreateBtn) {
+    optionalElements.mintCreateBtn.addEventListener("click", handlers.onMintCreate);
+  }
+}

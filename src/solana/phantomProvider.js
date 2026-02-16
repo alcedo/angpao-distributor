@@ -30,3 +30,31 @@ export async function disconnectPhantom(provider) {
     await provider.disconnect();
   }
 }
+
+export function classifyPhantomConnectError(error) {
+  const code = Number(error?.code);
+  const message = String(error?.message || error || "").toLowerCase();
+
+  if (
+    message.includes("locked") ||
+    message.includes("unlock phantom") ||
+    message.includes("wallet is locked")
+  ) {
+    return "locked";
+  }
+
+  if (
+    code === 4001 ||
+    message.includes("user rejected") ||
+    message.includes("rejected the request") ||
+    message.includes("denied")
+  ) {
+    return "rejected";
+  }
+
+  if (message.includes("phantom provider not available")) {
+    return "unavailable";
+  }
+
+  return "unknown";
+}

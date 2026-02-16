@@ -35,6 +35,25 @@
             Connect Phantom
           </button>
           <p id="phantom-status" class="status">Phantom integration is scaffolded for Phase 1.</p>
+          <div class="field-group">
+            <label for="token-mint-select">Disbursement token</label>
+            <p class="field-hint">
+              Select the SPL token to distribute from your connected Phantom wallet.
+            </p>
+            <details id="token-picker" class="token-picker">
+              <summary id="token-picker-summary" class="token-picker-summary">
+                <img id="token-picker-icon" class="token-picker-icon" alt="" />
+                <span id="token-picker-label">Connect Phantom first</span>
+              </summary>
+              <ul id="token-option-list" class="token-option-list"></ul>
+            </details>
+            <select id="token-mint-select" disabled hidden>
+              <option value="">Connect Phantom first</option>
+            </select>
+          </div>
+          <p id="token-inventory-status" class="status">
+            Connect Phantom to load SPL token balances for distribution.
+          </p>
         </div>
 
         <form id="generator-form" class="controls">
@@ -61,6 +80,48 @@
           <button id="download-csv-btn" type="button" disabled>Download CSV</button>
           <button id="download-json-btn" type="button" disabled>Download JSON</button>
           <button id="clear-btn" type="button" disabled>Clear</button>
+        </div>
+
+        <div class="controls">
+          <div class="field-group">
+            <label for="mint-initial-supply">Mint Wizard (Classic SPL)</label>
+            <p class="field-hint">
+              Create a new mint and mint initial supply into your connected Phantom wallet.
+            </p>
+            <div class="row">
+              <input
+                id="mint-initial-supply"
+                type="text"
+                inputmode="decimal"
+                value="1000"
+                placeholder="Initial supply (UI amount)"
+              />
+              <input
+                id="mint-decimals"
+                type="number"
+                min="0"
+                max="9"
+                step="1"
+                value="9"
+                aria-label="Token decimals"
+              />
+              <button id="mint-create-btn" type="button" class="inline-secondary-btn" disabled>
+                Create Mint + Mint Supply
+              </button>
+            </div>
+            <div class="row row-checkbox">
+              <input id="mint-mainnet-ack" type="checkbox" />
+              <label for="mint-mainnet-ack" class="checkbox-label">
+                I understand mainnet minting costs real SOL and cannot be undone.
+              </label>
+            </div>
+            <p id="mint-mainnet-hint" class="field-hint">
+              Mainnet mint-risk acknowledgement is only required on mainnet-beta.
+            </p>
+          </div>
+          <p id="mint-status" class="status">
+            Connect Phantom to create and mint a classic SPL token.
+          </p>
         </div>
 
         <div class="controls">

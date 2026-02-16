@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  classifyPhantomConnectError,
   connectPhantom,
   disconnectPhantom,
   getPhantomProvider,
@@ -38,5 +39,15 @@ describe("phantom provider helpers", () => {
 
     await disconnectPhantom(provider);
     expect(called).toBe(true);
+  });
+
+  it("classifies locked and rejected Phantom connect failures", () => {
+    expect(
+      classifyPhantomConnectError(new Error("Phantom wallet is locked. Unlock Phantom.")),
+    ).toBe("locked");
+    expect(
+      classifyPhantomConnectError({ message: "User rejected the request.", code: 4001 }),
+    ).toBe("rejected");
+    expect(classifyPhantomConnectError(new Error("Unknown failure"))).toBe("unknown");
   });
 });

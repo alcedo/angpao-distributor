@@ -10,14 +10,28 @@ import { serializeWalletsCsv, serializeWalletsJson } from "./domain/exporters.js
 import { validateWalletCount } from "./domain/validation.js";
 import { createConnectionContext } from "./solana/connection.js";
 import {
+  classifyPhantomConnectError,
   connectPhantom,
   disconnectPhantom,
   getPhantomProvider,
 } from "./solana/phantomProvider.js";
-import { bindNetworkWalletEvents, bindRecipientEvents, bindWalletEvents } from "./ui/events.js";
 import {
+  mintClassicSplTokenToOwner,
+  normalizeMintDecimals,
+} from "./solana/mintService.js";
+import { fetchClassicSplTokenHoldings } from "./solana/tokenService.js";
+import {
+  bindMintEvents,
+  bindNetworkWalletEvents,
+  bindRecipientEvents,
+  bindTokenEvents,
+  bindWalletEvents,
+} from "./ui/events.js";
+import {
+  renderMintWizardState,
   renderNetworkWalletState,
   renderRecipientImportState,
+  renderTokenInventoryState,
   renderWalletTable,
   setGeneratingState,
   setStatus,
@@ -46,6 +60,19 @@ const OPTIONAL_ELEMENT_IDS = {
   clearRecipientsBtn: "clear-recipients-btn",
   recipientSummary: "recipient-summary",
   recipientDiagnostics: "recipient-diagnostics",
+  tokenMintSelect: "token-mint-select",
+  tokenPicker: "token-picker",
+  tokenPickerSummary: "token-picker-summary",
+  tokenPickerLabel: "token-picker-label",
+  tokenPickerIcon: "token-picker-icon",
+  tokenOptionList: "token-option-list",
+  tokenInventoryStatus: "token-inventory-status",
+  mintDecimalsInput: "mint-decimals",
+  mintSupplyInput: "mint-initial-supply",
+  mintCreateBtn: "mint-create-btn",
+  mintMainnetAcknowledge: "mint-mainnet-ack",
+  mintMainnetHint: "mint-mainnet-hint",
+  mintStatus: "mint-status",
 };
 
 const INITIAL_CLUSTER = "devnet";
@@ -112,6 +139,13 @@ export function createWalletGeneratorApp(options = {}) {
     options.phantomProvider !== undefined
       ? options.phantomProvider
       : getPhantomProvider(globalRef);
+  const fetchTokenInventoryRef =
+    options.fetchTokenInventory ||
+    ((connection, ownerPublicKey) => fetchClassicSplTokenHoldings(connection, ownerPublicKey));
+  const mintClassicSplTokenRef =
+    options.mintClassicSplToken ||
+    ((params) => mintClassicSplTokenToOwner(params));
+  let tokenInventoryLoadRequestId = 0;
 
   const store = createStore({
     cluster,
@@ -128,6 +162,8 @@ export function createWalletGeneratorApp(options = {}) {
       duplicateCount: 0,
       totalRows: 0,
     },
+    tokenInventory: createIdleTokenInventory(),
+    mintWizard: createIdleMintWizardState(),
   });
 
   function getState() {
@@ -170,6 +206,28 @@ export function createWalletGeneratorApp(options = {}) {
       runSetDuplicateCount: runRecipientStats.duplicatesSkipped,
       invalidRows: state.recipientImport.invalidRows,
       duplicateCount: state.recipientImport.duplicateCount,
+    });
+  }
+
+  function refreshTokenInventoryView() {
+    const state = getState();
+    renderTokenInventoryState(optionalElements, {
+      status: state.tokenInventory.status,
+      items: state.tokenInventory.items,
+      selectedMint: state.tokenInventory.selectedMint,
+      cluster: state.cluster,
+      error: state.tokenInventory.error,
+    });
+  }
+
+  function refreshMintWizardView() {
+    const state = getState();
+    renderMintWizardState(optionalElements, {
+      isConnected: isWalletConnected(state),
+      isMinting: state.mintWizard.isMinting,
+      cluster: state.cluster,
+      error: state.mintWizard.error,
+      lastMint: state.mintWizard.lastMint,
     });
   }
 
@@ -325,17 +383,146 @@ export function createWalletGeneratorApp(options = {}) {
     }
   }
 
-  function onClusterChange(event) {
+  function clearTokenInventoryState() {
+    tokenInventoryLoadRequestId += 1;
+    setState({
+      ...getState(),
+      tokenInventory: createIdleTokenInventory(),
+    });
+    refreshTokenInventoryView();
+  }
+
+  function resetMintWizardState() {
+    setState({
+      ...getState(),
+      mintWizard: createIdleMintWizardState(),
+    });
+    refreshMintWizardView();
+  }
+
+  async function refreshTokenInventory(options = {}) {
+    const state = getState();
+    if (!isWalletConnected(state)) {
+      clearTokenInventoryState();
+      return {
+        status: "idle",
+        count: 0,
+      };
+    }
+
+    const ownerPublicKey = state.phantom.publicKey;
+    const loadedFor = {
+      cluster: state.cluster,
+      owner: ownerPublicKey,
+    };
+    const requestId = ++tokenInventoryLoadRequestId;
+
+    setState({
+      ...state,
+      tokenInventory: {
+        ...state.tokenInventory,
+        status: "loading",
+        items: [],
+        selectedMint: null,
+        loadedFor,
+        error: null,
+      },
+    });
+    refreshTokenInventoryView();
+
+    try {
+      const inventory = await fetchTokenInventoryRef(state.connection.connection, ownerPublicKey);
+      if (requestId !== tokenInventoryLoadRequestId) {
+        return {
+          status: "stale",
+          count: 0,
+        };
+      }
+
+      const nextSelectedMint = pickSelectedMint(
+        inventory,
+        options.preferredSelectedMint || state.tokenInventory.selectedMint,
+      );
+
+      setState({
+        ...getState(),
+        tokenInventory: {
+          status: "ready",
+          items: inventory,
+          selectedMint: nextSelectedMint,
+          loadedFor,
+          error: null,
+        },
+      });
+      refreshTokenInventoryView();
+
+      return {
+        status: "ready",
+        count: inventory.length,
+      };
+    } catch (error) {
+      if (requestId !== tokenInventoryLoadRequestId) {
+        return {
+          status: "stale",
+          count: 0,
+        };
+      }
+
+      setState({
+        ...getState(),
+        tokenInventory: {
+          status: "error",
+          items: [],
+          selectedMint: null,
+          loadedFor,
+          error: formatTokenInventoryError(error),
+        },
+      });
+      refreshTokenInventoryView();
+      throw error;
+    }
+  }
+
+  async function onClusterChange(event) {
     const nextCluster = event.target.value;
     try {
       const nextConnection = createConnectionContextRef(nextCluster);
+      const state = getState();
       setState({
-        ...getState(),
+        ...state,
         cluster: nextCluster,
         connection: nextConnection,
+        mintWizard: {
+          ...state.mintWizard,
+          error: null,
+          lastMint: null,
+        },
       });
       refreshNetworkWalletView();
-      setStatus(elements.statusEl, `Active cluster set to ${nextCluster}.`);
+      refreshMintWizardView();
+
+      if (!isWalletConnected(getState())) {
+        clearTokenInventoryState();
+        setStatus(elements.statusEl, `Active cluster set to ${nextCluster}.`);
+        return;
+      }
+
+      try {
+        const inventoryResult = await refreshTokenInventory();
+        if (inventoryResult.status === "ready") {
+          setStatus(
+            elements.statusEl,
+            `Active cluster set to ${nextCluster}. Loaded ${inventoryResult.count} token mint(s).`,
+          );
+        }
+      } catch (inventoryError) {
+        console.error(inventoryError);
+        setStatus(
+          elements.statusEl,
+          `Active cluster set to ${nextCluster}, but token inventory failed to load.`,
+          true,
+        );
+      }
     } catch (error) {
       console.error(error);
       setStatus(elements.statusEl, `Failed to set cluster: ${error.message}`, true);
@@ -355,16 +542,41 @@ export function createWalletGeneratorApp(options = {}) {
     if (!isWalletConnected(state)) {
       try {
         const { publicKey } = await connectPhantom(phantomProvider);
+        const currentState = getState();
         setState({
-          ...getState(),
+          ...currentState,
           phantom: {
             isConnected: true,
             publicKey,
           },
+          mintWizard: {
+            ...currentState.mintWizard,
+            error: null,
+          },
         });
-        setStatus(elements.statusEl, "Connected to Phantom wallet.");
+        refreshNetworkWalletView();
+        refreshMintWizardView();
+
+        try {
+          const inventoryResult = await refreshTokenInventory();
+          if (inventoryResult.status === "ready") {
+            setStatus(
+              elements.statusEl,
+              `Connected to Phantom wallet. Loaded ${inventoryResult.count} token mint(s).`,
+            );
+          }
+        } catch (inventoryError) {
+          console.error(inventoryError);
+          setStatus(
+            elements.statusEl,
+            `Connected to Phantom wallet, but token inventory failed to load.`,
+            true,
+          );
+        }
       } catch (error) {
         console.error(error);
+        clearTokenInventoryState();
+        resetMintWizardState();
         setState({
           ...getState(),
           phantom: {
@@ -372,10 +584,15 @@ export function createWalletGeneratorApp(options = {}) {
             publicKey: null,
           },
         });
-        setStatus(elements.statusEl, `Phantom connect failed: ${error.message}`, true);
+        setStatus(
+          elements.statusEl,
+          getPhantomConnectFailureMessage(error),
+          true,
+        );
       }
 
       refreshNetworkWalletView();
+      refreshMintWizardView();
       return;
     }
 
@@ -388,6 +605,8 @@ export function createWalletGeneratorApp(options = {}) {
           publicKey: null,
         },
       });
+      clearTokenInventoryState();
+      resetMintWizardState();
       setStatus(elements.statusEl, "Disconnected from Phantom wallet.");
     } catch (error) {
       console.error(error);
@@ -395,6 +614,158 @@ export function createWalletGeneratorApp(options = {}) {
     }
 
     refreshNetworkWalletView();
+    refreshMintWizardView();
+  }
+
+  function onTokenSelectionChange(event) {
+    const selectedMint = event?.target?.value || null;
+    const state = getState();
+    setState({
+      ...state,
+      tokenInventory: {
+        ...state.tokenInventory,
+        selectedMint,
+      },
+    });
+    refreshTokenInventoryView();
+  }
+
+  function onTokenOptionPick(event) {
+    const selectedMint = getTokenMintFromEvent(event);
+    if (!selectedMint) {
+      return;
+    }
+
+    if (optionalElements.tokenMintSelect) {
+      optionalElements.tokenMintSelect.value = selectedMint;
+    }
+    onTokenSelectionChange({
+      target: {
+        value: selectedMint,
+      },
+    });
+
+    if (optionalElements.tokenPicker) {
+      optionalElements.tokenPicker.open = false;
+    }
+  }
+
+  async function onMintCreate() {
+    const state = getState();
+    if (state.mintWizard.isMinting) {
+      return;
+    }
+    if (!isWalletConnected(state)) {
+      setStatus(elements.statusEl, "Connect Phantom before minting a token.", true);
+      setState({
+        ...state,
+        mintWizard: {
+          ...state.mintWizard,
+          error: "Phantom wallet is not connected.",
+        },
+      });
+      refreshMintWizardView();
+      return;
+    }
+
+    const decimalsInput = optionalElements.mintDecimalsInput?.value || "";
+    const initialSupplyUi = optionalElements.mintSupplyInput?.value || "";
+
+    let decimals;
+    try {
+      decimals = normalizeMintDecimals(decimalsInput);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setStatus(elements.statusEl, message, true);
+      setState({
+        ...state,
+        mintWizard: {
+          ...state.mintWizard,
+          error: message,
+        },
+      });
+      refreshMintWizardView();
+      return;
+    }
+
+    if (
+      state.cluster === "mainnet-beta" &&
+      optionalElements.mintMainnetAcknowledge &&
+      !optionalElements.mintMainnetAcknowledge.checked
+    ) {
+      const message =
+        "Mainnet mint acknowledgement is required before minting on mainnet-beta.";
+      setStatus(elements.statusEl, message, true);
+      setState({
+        ...state,
+        mintWizard: {
+          ...state.mintWizard,
+          error: message,
+        },
+      });
+      refreshMintWizardView();
+      return;
+    }
+
+    setState({
+      ...state,
+      mintWizard: {
+        ...state.mintWizard,
+        isMinting: true,
+        error: null,
+      },
+    });
+    refreshMintWizardView();
+    setStatus(elements.statusEl, "Submitting mint transaction to Phantom...");
+
+    try {
+      const mintResult = await mintClassicSplTokenRef({
+        connection: state.connection.connection,
+        provider: phantomProvider,
+        ownerPublicKey: state.phantom.publicKey,
+        decimals,
+        initialSupplyUi,
+      });
+
+      setState({
+        ...getState(),
+        mintWizard: {
+          isMinting: false,
+          error: null,
+          lastMint: {
+            ...mintResult,
+            cluster: state.cluster,
+          },
+        },
+      });
+      refreshMintWizardView();
+
+      const inventoryResult = await refreshTokenInventory({
+        preferredSelectedMint: mintResult.mint,
+      });
+      if (optionalElements.mintMainnetAcknowledge) {
+        optionalElements.mintMainnetAcknowledge.checked = false;
+      }
+
+      setStatus(
+        elements.statusEl,
+        `Mint created ${formatShortAddress(mintResult.mint)}. Loaded ${inventoryResult.count} token mint(s).`,
+      );
+    } catch (error) {
+      console.error(error);
+      const message = error instanceof Error ? error.message : String(error);
+      const currentState = getState();
+      setState({
+        ...currentState,
+        mintWizard: {
+          ...currentState.mintWizard,
+          isMinting: false,
+          error: message,
+        },
+      });
+      refreshMintWizardView();
+      setStatus(elements.statusEl, `Mint flow failed: ${message}`, true);
+    }
   }
 
   async function onImportRecipients() {
@@ -476,9 +847,20 @@ export function createWalletGeneratorApp(options = {}) {
     onClearRecipients,
   });
 
+  bindTokenEvents(optionalElements, {
+    onTokenSelectionChange,
+    onTokenOptionPick,
+  });
+
+  bindMintEvents(optionalElements, {
+    onMintCreate,
+  });
+
   refreshWalletView();
   refreshNetworkWalletView();
   refreshRecipientImportView();
+  refreshTokenInventoryView();
+  refreshMintWizardView();
   setGeneratingState(elements, false, hasWeb3);
 
   if (!hasWeb3) {
@@ -501,6 +883,7 @@ export function createWalletGeneratorApp(options = {}) {
     elements,
     optionalElements,
     getState,
+    refreshTokenInventory,
   };
 }
 
@@ -528,6 +911,87 @@ function getOptionalElements(documentRef) {
     elements[key] = documentRef.getElementById(id);
   }
   return elements;
+}
+
+function createIdleTokenInventory() {
+  return {
+    status: "idle",
+    items: [],
+    selectedMint: null,
+    loadedFor: null,
+    error: null,
+  };
+}
+
+function createIdleMintWizardState() {
+  return {
+    isMinting: false,
+    error: null,
+    lastMint: null,
+  };
+}
+
+function pickSelectedMint(items, previousSelectedMint) {
+  if (
+    previousSelectedMint &&
+    items.some((item) => item.mint === previousSelectedMint)
+  ) {
+    return previousSelectedMint;
+  }
+
+  if (items.length === 1) {
+    return items[0].mint;
+  }
+
+  return null;
+}
+
+function formatShortAddress(value) {
+  const text = String(value || "");
+  if (text.length <= 12) {
+    return text;
+  }
+  return `${text.slice(0, 4)}...${text.slice(-4)}`;
+}
+
+function getTokenMintFromEvent(event) {
+  const target = event?.target;
+  if (!target) {
+    return "";
+  }
+
+  if (typeof target.closest === "function") {
+    const button = target.closest("[data-token-mint]");
+    if (button?.dataset?.tokenMint) {
+      return button.dataset.tokenMint;
+    }
+  }
+
+  return target?.dataset?.tokenMint || "";
+}
+
+function getPhantomConnectFailureMessage(error) {
+  const classification = classifyPhantomConnectError(error);
+
+  if (classification === "locked") {
+    return "Phantom wallet is locked. Unlock Phantom and try connecting again.";
+  }
+
+  if (classification === "rejected") {
+    return "Phantom connect request was not approved. If Phantom is locked, unlock it and try again.";
+  }
+
+  const baseMessage = error instanceof Error ? error.message : String(error || "");
+  return `Phantom connect failed: ${baseMessage || "unknown error"}. If Phantom is locked, unlock it and try again.`;
+}
+
+function formatTokenInventoryError(error) {
+  const message = error instanceof Error ? error.message : String(error || "");
+  const normalized = message.toLowerCase();
+  if (normalized.includes("403") && normalized.includes("forbidden")) {
+    return "RPC endpoint denied token-balance lookup (403 Access Forbidden). Try again later or switch RPC endpoint.";
+  }
+  return message || "Unknown token inventory error.";
 }
 
 export function uint8ToBase64(bytes, base64Encode) {

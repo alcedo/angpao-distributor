@@ -49,6 +49,7 @@ Implication:
 - Phantom connect/disconnect required for minting/distribution actions.
 - All data/actions are cluster-scoped.
 - Upon successful Phantom connect, app loads existing classic SPL token holdings for the connected wallet on the selected cluster.
+- If Phantom is installed but locked, app must show explicit unlock guidance and block token-dependent actions until unlocked.
 
 ### 2) Recipient Management
 - Generate wallets client-side and export CSV/JSON.
@@ -65,6 +66,10 @@ Implication:
 ### 4) Distribution
 - User selects token from Phantom holdings.
 - Token selector is populated from connected wallet SPL holdings and becomes available immediately after Phantom connect.
+- Token selector is positioned near Phantom connect controls and shows token display name + balance for each option.
+- Token selector attempts to render token logo for each option; if logo cannot be resolved or loaded, app shows a placeholder icon.
+- For legacy SPL mints without Metaplex metadata (for example USDC), app must fallback to curated known-token metadata so name/logo still render.
+- Token-logo metadata URI fetch must process all discovered eligible tokens (no hard cap that drops tokens from logo resolution).
 - User enters total amount; app computes equal split in base units.
 - Sequential execution (recipient by recipient).
 - Create recipient ATA when missing.
@@ -119,6 +124,10 @@ Implication:
 ### Integration
 - Phantom connect/disconnect state changes.
 - SPL token inventory is fetched on Phantom connect and rendered in token selector.
+- Locked Phantom connect attempts surface unlock guidance.
+- Token selector options render token display name + balance and icon fallback behavior.
+- Legacy token fallback path (e.g., USDC without Metaplex metadata) renders expected token name/logo.
+- Wallets with more than 32 eligible SPL tokens still run metadata URI logo resolution across all discovered tokens.
 - Mint wizard flow per cluster.
 - Token inventory refresh after mint.
 - Sequential transfer flow with mixed outcomes.
@@ -144,7 +153,10 @@ Legend: `Not Started` | `Scaffolded` | `Partially Complete` | `Complete`
   - Solana address validation and duplicate-recipient merging are implemented for CSV imports.
   - Invalid CSV rows are rejected and shown to user with per-line diagnostics.
   - Unified mixed generated + CSV recipient run-set wiring is implemented with cross-source deduplication.
-- Token Minting (All 3 Clusters): `Not Started`
+- Token Minting (All 3 Clusters): `Partially Complete`
+  - Mint wizard now creates classic SPL mint + ATA and mints initial supply via connected Phantom.
+  - Mainnet minting requires explicit acknowledgement before submission.
+  - Distribution-related mint usage and reporting are not implemented yet.
 - Distribution: `Not Started`
 - Mainnet Safety Guardrails: `Not Started`
 - Reporting: `Not Started`
@@ -157,7 +169,12 @@ Legend: `Not Started` | `Scaffolded` | `Partially Complete` | `Complete`
 4. Distribution runs on all three clusters with correct isolation.
 5. Results are visible in-app and exportable as CSV/JSON.
 6. Private keys are not persisted unless explicitly exported.
-7. After Phantom connect, existing wallet SPL tokens are shown and selectable for disbursement to generated/imported recipients.
+7. After Phantom connect, existing wallet SPL tokens are shown near Phantom connect controls and selectable for disbursement to generated/imported recipients.
+8. After the user selects an SPL token, that selected token becomes the run’s distribution token and is used for all recipients in the unified run set (both generated wallets and CSV-imported wallets).
+9. Token selector options display token name and balance, and each option uses token logo when available or a placeholder icon when logo loading fails.
+10. If Phantom is locked, the app clearly instructs the user to unlock Phantom before continuing.
+11. Legacy tokens that do not expose Metaplex metadata (such as USDC) still display correct token name/logo via curated metadata fallback.
+12. Token-logo metadata URI fetch does not stop at 32 tokens; it processes the full discovered token set for the connected wallet.
 
 ## Assumptions
 - “User need to have their own tokens” means users can either:
