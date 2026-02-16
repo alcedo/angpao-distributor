@@ -13,17 +13,13 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <main class="shell">
-      <section class="panel">
-        <p class="eyebrow">Solana Web3 Toolkit</p>
-        <h1>Wallet Batch Generator</h1>
-        <p class="lead">
-          Generate multiple Solana wallet addresses and export them as CSV or JSON.
-          Keys are generated locally in your browser.
-        </p>
-
-        <div class="controls" aria-label="network and wallet scaffold">
-          <div class="field-group">
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="topbar-brand" aria-label="application">
+          <span class="topbar-brand-text">Solana Web3 Toolkit</span>
+        </div>
+        <div class="topbar-controls" aria-label="network and wallet controls">
+          <div class="topbar-cluster">
             <label for="cluster-select">Cluster</label>
             <select id="cluster-select" name="cluster">
               <option value="devnet">Devnet</option>
@@ -34,7 +30,21 @@
           <button id="phantom-connect-btn" type="button" class="secondary-btn" disabled>
             Connect Phantom
           </button>
-          <p id="phantom-status" class="status">Phantom integration is scaffolded for Phase 1.</p>
+        </div>
+      </div>
+    </header>
+
+    <main class="shell">
+      <section class="panel">
+        <p class="eyebrow">Solana Web3 Toolkit</p>
+        <h1>Wallet Batch Generator</h1>
+        <p class="lead">
+          Generate multiple Solana wallet addresses and export them as CSV or JSON.
+          Keys are generated locally in your browser.
+        </p>
+        <p id="phantom-status" class="status">Phantom integration is scaffolded for Phase 1.</p>
+
+        <div class="controls" aria-label="network and wallet scaffold">
           <div class="field-group">
             <label for="token-mint-select">Disbursement token</label>
             <p class="field-hint">
