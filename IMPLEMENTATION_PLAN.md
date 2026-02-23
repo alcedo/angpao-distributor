@@ -19,7 +19,7 @@ This plan is implementation-ready and includes test coverage requirements mapped
 | Phase 0: Bootstrap and Refactor Foundation | Complete |
 | Phase 1: Cluster and Phantom Connectivity | Complete |
 | Phase 2: Recipient Management (Generated + CSV) | Complete |
-| Phase 3: Token Discovery and Mint Wizard | Partially Complete |
+| Phase 3: Token Discovery and Mint Wizard | Complete |
 | Phase 4: Distribution Planning and Guardrails | Not Started |
 | Phase 5: Sequential Distribution Execution + Manual Retry | Not Started |
 | Phase 6: Reporting, Exports, and Final Hardening | Not Started |
@@ -67,10 +67,11 @@ This plan is implementation-ready and includes test coverage requirements mapped
 - [x] Render token logo in selector options when available, with placeholder fallback on image load failure.
 - [x] Add curated fallback metadata for legacy tokens without Metaplex metadata (e.g., USDC) so token name/logo still resolve.
 - [x] Remove hard metadata URI logo-fetch cap; process all discovered eligible tokens with bounded concurrency.
+- [x] Query both legacy SPL and Token-2022 token-account programs during inventory fetch so wallets do not under-report holdings in the selector.
 - [x] Clear token inventory + selection on Phantom disconnect.
 - [x] Refresh token inventory on cluster change while connected.
 - [x] Refresh token inventory after successful mint.
-- [ ] Move mint entrypoint from in-panel tabs to topbar `Mint Test Token` workflow button with toggle/back behavior and mutually exclusive panels.
+- [x] Move mint entrypoint from in-panel tabs to topbar `Mint Test Token` workflow button with toggle/back behavior and mutually exclusive panels.
 - [x] Add unit tests for token inventory normalization/filtering.
 - [x] Add integration tests for connect-triggered token loading and selector rendering.
 - [x] Run and pass `npm test`.
@@ -95,6 +96,7 @@ This plan is implementation-ready and includes test coverage requirements mapped
 - `tests/unit/validation.test.js`
 - `tests/unit/exporters.test.js`
 - `tests/unit/encoding.test.js`
+- `tests/unit/indexLayout.test.js`
 - `tests/unit/csvRecipients.test.js`
 - `tests/unit/connection.test.js`
 - `tests/unit/phantomProvider.test.js`
@@ -116,6 +118,10 @@ This plan is implementation-ready and includes test coverage requirements mapped
 | 2026-02-16 | `npm test` | Passed (50 tests across 11 test files after token selector name/logo + fallback updates) |
 | 2026-02-16 | `npm run build` | Passed (Vite production build succeeded after token selector metadata/icon updates) |
 | 2026-02-16 | `npm test` | Passed (tokenService coverage includes USDC legacy fallback + >32-token logo-fetch scenario) |
+| 2026-02-21 | `npm test` | Passed (56 tests across 11 test files) |
+| 2026-02-21 | `npm run build` | Passed (Vite production build succeeded) |
+| 2026-02-23 | `npm test` | Passed (57 tests across 11 test files, includes dual token-program inventory coverage) |
+| 2026-02-23 | `npm run build` | Passed (Vite production build succeeded after Devnet token-discovery fix) |
 
 ## 2) Current State and Gap
 Current repo capabilities:
@@ -123,13 +129,13 @@ Current repo capabilities:
 - wallet generation + CSV/JSON export
 - CSV recipient import with address validation, deduplication, and invalid-row diagnostics
 - Phantom connect/disconnect with cluster-aware context (`devnet`, `testnet`, `mainnet-beta`)
-- connected-wallet classic SPL token inventory loading with token selector display metadata
+- connected-wallet token inventory loading (legacy SPL + Token-2022 account programs) with token selector display metadata
 - classic SPL mint wizard (create mint + owner ATA + initial supply mint), including mainnet acknowledgement gating
-- mint workflow separation scaffolding exists, but mint entrypoint UX is still panel-tab oriented instead of topbar workflow oriented
+- topbar workflow toggle (`Mint Test Token` / `Back to Wallet Generator`) with mutually exclusive wallet and mint panels
 - Vitest unit/integration suites
 
 Major gaps vs PRD:
-- mint entrypoint must be moved from in-panel tab UX to topbar workflow button UX (`Mint Test Token` / `Back to Wallet Generator`)
+- no distribution amount/planning UX yet (equal split inputs, plan preview, and run-start gating)
 - no distribution engine
 - no mainnet guardrail workflows for distribution
 - no transfer run reports
@@ -151,6 +157,7 @@ Major gaps vs PRD:
 - UI workflow mode: single-page two-mode UX with default `wallet-disbursement`; topbar `Mint Test Token` button toggles to `mint-test-token` mode and back.
 - Token inventory fetch triggers: Phantom connect success, cluster change (when connected), mint success.
 - Token inventory scope: strict to `{cluster, connectedWalletPublicKey}`.
+- Token inventory program coverage: query `TOKEN_PROGRAM_ID` and `TOKEN_2022_PROGRAM_ID` for discovery completeness; downstream distribution scope remains PRD-scoped.
 - Inventory display set: classic SPL holdings with `balanceRaw > 0`.
 - Selector default: auto-select only when exactly one token exists; otherwise require explicit user selection.
 - Metadata policy (MVP): derive token display metadata from on-chain token metadata accounts + metadata URI payload when available; fallback to curated known-token metadata (e.g., USDC) when Metaplex metadata is missing; otherwise fallback to shortened mint + placeholder icon.
@@ -229,21 +236,23 @@ Exit criteria:
 ### Phase 3: Token Discovery and Mint Wizard
 Tasks:
 1. Fetch classic SPL token holdings immediately after Phantom connect.
-2. Store inventory in app state with loading/error semantics.
-3. Render token selector for distribution from wallet holdings near Phantom connect controls.
-4. Render each token option with token name + balance and logo/placeholder icon handling.
-5. Implement mint wizard (create mint + ATA + mint supply).
-6. Refresh token inventory on mint success and cluster change while connected.
-7. Clear token inventory on disconnect.
-8. Surface explicit Phantom unlock guidance when connect fails due locked wallet.
-9. Add curated fallback token metadata for legacy mints lacking Metaplex metadata.
-10. Ensure metadata URI logo enrichment runs across full discovered token set (no fixed 32-token cutoff).
-11. Move `Mint Test Token` entrypoint to top header controls and treat minting as a separate workflow mode.
-12. Implement topbar workflow toggle label behavior: `Mint Test Token` -> `Back to Wallet Generator`.
-13. Keep wallet/disbursement and mint panels mutually exclusive while preserving in-memory mint form/state across toggles.
+2. Query both legacy SPL and Token-2022 token-account programs for inventory visibility to avoid missing holdings in wallet selector UX.
+3. Store inventory in app state with loading/error semantics.
+4. Render token selector for distribution from wallet holdings near Phantom connect controls.
+5. Render each token option with token name + balance and logo/placeholder icon handling.
+6. Implement mint wizard (create mint + ATA + mint supply).
+7. Refresh token inventory on mint success and cluster change while connected.
+8. Clear token inventory on disconnect.
+9. Surface explicit Phantom unlock guidance when connect fails due locked wallet.
+10. Add curated fallback token metadata for legacy mints lacking Metaplex metadata.
+11. Ensure metadata URI logo enrichment runs across full discovered token set (no fixed 32-token cutoff).
+12. Move `Mint Test Token` entrypoint to top header controls and treat minting as a separate workflow mode.
+13. Implement topbar workflow toggle label behavior: `Mint Test Token` -> `Back to Wallet Generator`.
+14. Keep wallet/disbursement and mint panels mutually exclusive while preserving in-memory mint form/state across toggles.
 
 Exit criteria:
 - Connecting Phantom populates token selector with existing SPL holdings for the selected cluster.
+- Token selector inventory does not under-count holdings when wallet balances are split across legacy SPL and Token-2022 token-account programs.
 - Token selector updates correctly on cluster switch and after mint.
 - Token selector shows token name + balance and icon fallback behavior for every option.
 - Locked Phantom state is surfaced with clear unlock guidance.
@@ -373,6 +382,7 @@ UI workflow contracts:
 - Integration: switching workflows preserves mint form values and mint status content.
 - Integration: token selector behavior and availability in wallet/disbursement workflow remains unchanged after workflow toggles.
 - Unit: token inventory normalization (group/filter/sort) returns deterministic selector data.
+- Unit: token inventory fetch queries both `TOKEN_PROGRAM_ID` and `TOKEN_2022_PROGRAM_ID` and merges results.
 
 ## 8) Definition of Done
 Implementation is complete only when:

@@ -1,4 +1,4 @@
-import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
 import { Connection, PublicKey } from "@solana/web3.js";
 import { Buffer } from "buffer/";
 import { sha256 } from "@noble/hashes/sha256";
@@ -9,6 +9,7 @@ const TOKEN_METADATA_PROGRAM_ID = new PublicKey(
 );
 const MAX_MULTIPLE_ACCOUNTS = 100;
 const DEFAULT_METADATA_URI_FETCH_CONCURRENCY = 10;
+const SUPPORTED_TOKEN_PROGRAM_IDS = [TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID];
 const textDecoder = new TextDecoder();
 const textEncoder = new TextEncoder();
 const METADATA_SEED = textEncoder.encode("metadata");
@@ -39,16 +40,16 @@ export async function fetchClassicSplTokenHoldings(connection, ownerPublicKey, o
   const owner =
     typeof ownerPublicKey === "string" ? new PublicKey(ownerPublicKey) : ownerPublicKey;
 
-  const { response, sourceConnection } = await getParsedTokenAccountsByOwnerWithFallback(
+  const { accounts, sourceConnections } = await getParsedTokenAccountsByOwnerWithFallback(
     connection,
     owner,
     options,
   );
 
-  const normalizedAssets = normalizeClassicSplTokenAccounts(response?.value || []);
+  const normalizedAssets = normalizeClassicSplTokenAccounts(accounts);
   const mintedAssets = normalizedAssets.map((asset) => asset.mint);
   const metadataByMint = await fetchTokenMetadataByMint(
-    [sourceConnection, connection],
+    [...sourceConnections, connection],
     mintedAssets,
   );
   const metadataJsonByMint = await fetchTokenMetadataJsonByMint(metadataByMint, options);
@@ -395,9 +396,47 @@ function toUint8Array(data) {
 }
 
 async function getParsedTokenAccountsByOwnerWithFallback(connection, owner, options) {
+  const accounts = [];
+  const sourceConnections = [];
+  const failures = [];
+  const tokenProgramIds = normalizeTokenProgramIds(options?.tokenProgramIds);
+
+  for (const programId of tokenProgramIds) {
+    try {
+      const { response, sourceConnection } =
+        await getParsedTokenAccountsByOwnerForProgramWithFallback(
+          connection,
+          owner,
+          programId,
+          options,
+        );
+      if (Array.isArray(response?.value)) {
+        accounts.push(...response.value);
+      }
+      if (sourceConnection) {
+        sourceConnections.push(sourceConnection);
+      }
+    } catch (error) {
+      failures.push(error);
+    }
+  }
+
+  if (!accounts.length && failures.length === tokenProgramIds.length) {
+    throw failures[0];
+  }
+
+  return { accounts, sourceConnections };
+}
+
+async function getParsedTokenAccountsByOwnerForProgramWithFallback(
+  connection,
+  owner,
+  tokenProgramId,
+  options,
+) {
   try {
     const response = await connection.getParsedTokenAccountsByOwner(owner, {
-      programId: TOKEN_PROGRAM_ID,
+      programId: tokenProgramId,
     });
     return {
       response,
@@ -408,7 +447,12 @@ async function getParsedTokenAccountsByOwnerWithFallback(connection, owner, opti
       throw primaryError;
     }
 
-    const fallback = await tryFallbackRpcEndpoints(connection, owner, options);
+    const fallback = await tryFallbackRpcEndpoints(
+      connection,
+      owner,
+      options,
+      tokenProgramId,
+    );
     if (fallback) {
       return fallback;
     }
@@ -419,7 +463,7 @@ async function getParsedTokenAccountsByOwnerWithFallback(connection, owner, opti
   }
 }
 
-async function tryFallbackRpcEndpoints(connection, owner, options) {
+async function tryFallbackRpcEndpoints(connection, owner, options, tokenProgramId) {
   const fallbackEndpoints = getFallbackRpcEndpoints(connection?.rpcEndpoint);
   if (!fallbackEndpoints.length) {
     return null;
@@ -440,7 +484,7 @@ async function tryFallbackRpcEndpoints(connection, owner, options) {
       }
 
       const response = await fallbackConnection.getParsedTokenAccountsByOwner(owner, {
-        programId: TOKEN_PROGRAM_ID,
+        programId: tokenProgramId,
       });
       return {
         response,
@@ -609,4 +653,27 @@ function normalizePositiveInt(rawValue, fallback) {
     return fallback;
   }
   return value;
+}
+
+function normalizeTokenProgramIds(rawTokenProgramIds) {
+  if (!Array.isArray(rawTokenProgramIds) || rawTokenProgramIds.length === 0) {
+    return SUPPORTED_TOKEN_PROGRAM_IDS;
+  }
+
+  const deduped = new Map();
+  for (const entry of rawTokenProgramIds) {
+    try {
+      const programId =
+        entry instanceof PublicKey ? entry : new PublicKey(String(entry || "").trim());
+      deduped.set(programId.toBase58(), programId);
+    } catch {
+      continue;
+    }
+  }
+
+  if (deduped.size === 0) {
+    return SUPPORTED_TOKEN_PROGRAM_IDS;
+  }
+
+  return [...deduped.values()];
 }

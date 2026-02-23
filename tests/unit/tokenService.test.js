@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { PublicKey } from "@solana/web3.js";
+import { TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
 import {
   fetchClassicSplTokenHoldings,
   normalizeClassicSplTokenAccounts,
@@ -103,6 +104,9 @@ describe("tokenService", () => {
     const connection = {
       async getParsedTokenAccountsByOwner(owner, filter) {
         calls.push({ fn: "parsed", owner, filter });
+        if (String(filter?.programId) !== TOKEN_PROGRAM_ID.toBase58()) {
+          return { value: [] };
+        }
         return {
           value: [
             {
@@ -154,6 +158,11 @@ describe("tokenService", () => {
 
     expect(calls.length).toBeGreaterThanOrEqual(1);
     expect(calls[0].fn).toBe("parsed");
+    expect(
+      calls
+        .filter((call) => call.fn === "parsed")
+        .map((call) => String(call.filter?.programId)),
+    ).toEqual(expect.arrayContaining([TOKEN_PROGRAM_ID.toBase58(), TOKEN_2022_PROGRAM_ID.toBase58()]));
     expect(calls.some((call) => call.fn === "metadata")).toBe(true);
     expect(items).toHaveLength(1);
     expect(items[0].mint).toBe(mint);
@@ -167,7 +176,10 @@ describe("tokenService", () => {
   it("applies known-token fallback metadata when metaplex metadata is missing", async () => {
     const mint = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
     const connection = {
-      async getParsedTokenAccountsByOwner() {
+      async getParsedTokenAccountsByOwner(_, filter) {
+        if (String(filter?.programId) !== TOKEN_PROGRAM_ID.toBase58()) {
+          return { value: [] };
+        }
         return {
           value: [
             {
@@ -214,7 +226,10 @@ describe("tokenService", () => {
     const mintCount = 33;
     const mints = Array.from({ length: mintCount }, () => PublicKey.unique().toBase58());
     const connection = {
-      async getParsedTokenAccountsByOwner() {
+      async getParsedTokenAccountsByOwner(_, filter) {
+        if (String(filter?.programId) !== TOKEN_PROGRAM_ID.toBase58()) {
+          return { value: [] };
+        }
         return {
           value: mints.map((mint) => ({
             account: {
@@ -291,7 +306,10 @@ describe("tokenService", () => {
         seenEndpoints.push(endpoint);
         return {
           rpcEndpoint: endpoint,
-          async getParsedTokenAccountsByOwner() {
+          async getParsedTokenAccountsByOwner(_, filter) {
+            if (String(filter?.programId) !== TOKEN_PROGRAM_ID.toBase58()) {
+              return { value: [] };
+            }
             return {
               value: [
                 {
@@ -323,6 +341,74 @@ describe("tokenService", () => {
     expect(items).toHaveLength(1);
     expect(items[0].mint).toBe(mint);
     expect(items[0].balanceUi).toBe("42");
+  });
+
+  it("includes token holdings from both classic SPL and token-2022 programs", async () => {
+    const classicMint = PublicKey.unique().toBase58();
+    const token2022Mint = PublicKey.unique().toBase58();
+    const seenProgramIds = [];
+    const connection = {
+      async getParsedTokenAccountsByOwner(_, filter) {
+        const programId = String(filter?.programId || "");
+        seenProgramIds.push(programId);
+        if (programId === TOKEN_PROGRAM_ID.toBase58()) {
+          return {
+            value: [
+              {
+                account: {
+                  data: {
+                    parsed: {
+                      info: {
+                        mint: classicMint,
+                        tokenAmount: {
+                          amount: "100",
+                          decimals: 2,
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            ],
+          };
+        }
+        if (programId === TOKEN_2022_PROGRAM_ID.toBase58()) {
+          return {
+            value: [
+              {
+                account: {
+                  data: {
+                    parsed: {
+                      info: {
+                        mint: token2022Mint,
+                        tokenAmount: {
+                          amount: "9000",
+                          decimals: 3,
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            ],
+          };
+        }
+        return { value: [] };
+      },
+      async getMultipleAccountsInfo() {
+        return [];
+      },
+    };
+
+    const items = await fetchClassicSplTokenHoldings(connection, "11111111111111111111111111111111");
+
+    expect(seenProgramIds).toEqual(
+      expect.arrayContaining([TOKEN_PROGRAM_ID.toBase58(), TOKEN_2022_PROGRAM_ID.toBase58()]),
+    );
+    expect(items).toHaveLength(2);
+    expect(items.map((item) => item.mint)).toEqual([classicMint, token2022Mint].sort());
+    expect(items.find((item) => item.mint === classicMint)?.balanceUi).toBe("1");
+    expect(items.find((item) => item.mint === token2022Mint)?.balanceUi).toBe("9");
   });
 
   it("parses metadata account data and resolves display-name fallbacks", () => {
