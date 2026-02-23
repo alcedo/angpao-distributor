@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   canRunWalletRequiredActions,
+  getDistributionGateModel,
   getRunRecipientStats,
   getRunRecipients,
+  getSelectedTokenAsset,
   isWalletConnected,
 } from "../../src/state/selectors.js";
 
@@ -70,5 +72,48 @@ describe("state selectors", () => {
     expect(stats.importedCount).toBe(2);
     expect(stats.duplicatesSkipped).toBe(2);
     expect(stats.recipients).toHaveLength(2);
+  });
+
+  it("getSelectedTokenAsset returns selected token from inventory", () => {
+    const selected = getSelectedTokenAsset({
+      tokenInventory: {
+        selectedMint: "MintB",
+        items: [
+          { mint: "MintA", displayName: "Token A" },
+          { mint: "MintB", displayName: "Token B" },
+        ],
+      },
+    });
+
+    expect(selected).toEqual({
+      mint: "MintB",
+      displayName: "Token B",
+    });
+  });
+
+  it("getDistributionGateModel derives static and start gating flags", () => {
+    const gate = getDistributionGateModel({
+      distribution: {
+        checks: {
+          walletConnected: true,
+          tokenSelected: true,
+          tokenClassicSupported: true,
+          recipientsReady: true,
+          amountValid: true,
+          tokenBalanceSufficient: true,
+          feeHeadroomSufficient: true,
+          mainnetChecklistAccepted: true,
+          preflightPassed: true,
+        },
+        preflight: {
+          status: "passed",
+        },
+      },
+    });
+
+    expect(gate.allStaticChecksPass).toBe(true);
+    expect(gate.canRunPreflight).toBe(true);
+    expect(gate.canStartDistribution).toBe(true);
+    expect(gate.preflightRunning).toBe(false);
   });
 });

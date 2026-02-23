@@ -115,4 +115,23 @@ test.describe("Smoke test – wallet generation happy path", () => {
     await expect(page.locator("#cluster-select")).toHaveValue("mainnet-beta");
     await expect(page.locator("#status")).toContainText("mainnet-beta");
   });
+
+  test("distribution planner controls are present and guarded before prerequisites", async ({
+    page,
+  }) => {
+    await page.goto("/");
+
+    await expect(page.locator("#distribution-total-amount")).toBeVisible();
+    await expect(page.locator("#distribution-plan-status")).toContainText("Connect Phantom");
+    await expect(page.locator("#distribution-preflight-btn")).toBeDisabled();
+    await expect(page.locator("#distribution-start-btn")).toBeDisabled();
+
+    await page.locator("#cluster-select").selectOption("mainnet-beta");
+    await expect(page.locator("#distribution-mainnet-checklist")).not.toBeHidden();
+    await expect(page.locator("#distribution-mainnet-ack-fees")).toBeDisabled();
+    await expect(page.locator("#distribution-mainnet-ack-irreversible")).toBeDisabled();
+
+    await page.locator("#cluster-select").selectOption("devnet");
+    await expect(page.locator("#distribution-mainnet-checklist")).toBeHidden();
+  });
 });

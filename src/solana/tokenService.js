@@ -7,6 +7,7 @@ import { ed25519 } from "@noble/curves/ed25519";
 const TOKEN_METADATA_PROGRAM_ID = new PublicKey(
   "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s",
 );
+const CLASSIC_TOKEN_PROGRAM_ID = TOKEN_PROGRAM_ID.toBase58();
 const MAX_MULTIPLE_ACCOUNTS = 100;
 const DEFAULT_METADATA_URI_FETCH_CONCURRENCY = 10;
 const SUPPORTED_TOKEN_PROGRAM_IDS = [TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID];
@@ -94,6 +95,8 @@ export function normalizeClassicSplTokenAccounts(accounts) {
     const tokenAmount = info?.tokenAmount;
     const decimals = Number(tokenAmount?.decimals);
     const amountRawString = String(tokenAmount?.amount || "").trim();
+    const tokenProgramId = resolveTokenProgramId(account);
+    const isClassicSpl = tokenProgramId === CLASSIC_TOKEN_PROGRAM_ID;
 
     if (!mint || !Number.isInteger(decimals) || decimals < 0 || !amountRawString) {
       continue;
@@ -112,7 +115,13 @@ export function normalizeClassicSplTokenAccounts(accounts) {
 
     const existing = balancesByMint.get(mint);
     if (!existing) {
-      balancesByMint.set(mint, { mint, decimals, balanceRaw: amountRaw });
+      balancesByMint.set(mint, {
+        mint,
+        decimals,
+        balanceRaw: amountRaw,
+        tokenProgramId,
+        isClassicSpl,
+      });
       continue;
     }
 
@@ -121,6 +130,10 @@ export function normalizeClassicSplTokenAccounts(accounts) {
     }
 
     existing.balanceRaw += amountRaw;
+    if (!existing.isClassicSpl && isClassicSpl) {
+      existing.tokenProgramId = tokenProgramId;
+      existing.isClassicSpl = true;
+    }
   }
 
   return [...balancesByMint.values()]
@@ -395,6 +408,25 @@ function toUint8Array(data) {
   return null;
 }
 
+function resolveTokenProgramId(account) {
+  const accountOwnerProgramId = String(account?.account?.owner || "").trim();
+  if (accountOwnerProgramId) {
+    return accountOwnerProgramId;
+  }
+
+  const taggedProgramId = String(account?.__tokenProgramId || "").trim();
+  if (taggedProgramId) {
+    return taggedProgramId;
+  }
+
+  const directProgramId = String(account?.programId || "").trim();
+  if (directProgramId) {
+    return directProgramId;
+  }
+
+  return CLASSIC_TOKEN_PROGRAM_ID;
+}
+
 async function getParsedTokenAccountsByOwnerWithFallback(connection, owner, options) {
   const accounts = [];
   const sourceConnections = [];
@@ -411,7 +443,12 @@ async function getParsedTokenAccountsByOwnerWithFallback(connection, owner, opti
           options,
         );
       if (Array.isArray(response?.value)) {
-        accounts.push(...response.value);
+        accounts.push(
+          ...response.value.map((account) => ({
+            ...account,
+            __tokenProgramId: programId.toBase58(),
+          })),
+        );
       }
       if (sourceConnection) {
         sourceConnections.push(sourceConnection);

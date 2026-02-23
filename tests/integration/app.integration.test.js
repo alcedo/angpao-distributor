@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { createWalletGeneratorApp } from "../../src/app.js";
 
 function createEvent(type, extra = {}) {
@@ -112,6 +113,31 @@ function createMockDocument() {
     "mint-status": createMockElement({
       textContent: "Connect Phantom to create and mint a classic SPL token.",
     }),
+    "distribution-total-amount": createMockElement({ value: "", disabled: true }),
+    "distribution-plan-status": createMockElement({
+      textContent: "Connect Phantom to plan a token distribution.",
+    }),
+    "distribution-plan-summary": createMockElement({
+      textContent: "Distribution plan preview appears after selecting a token.",
+    }),
+    "distribution-mainnet-checklist": createMockElement({ hidden: true }),
+    "distribution-mainnet-ack-fees": createMockElement({ checked: false, disabled: true }),
+    "distribution-mainnet-ack-irreversible": createMockElement({
+      checked: false,
+      disabled: true,
+    }),
+    "distribution-preflight-btn": createMockElement({
+      disabled: true,
+      textContent: "Run Preflight",
+    }),
+    "distribution-preflight-status": createMockElement({
+      textContent: "Preflight not run yet.",
+    }),
+    "distribution-preflight-failures": createMockElement({ innerHTML: "" }),
+    "distribution-start-btn": createMockElement({
+      disabled: true,
+      textContent: "Start Distribution",
+    }),
     "tool-panel-wallet-generator": createMockElement({ hidden: false }),
     "tool-panel-mint-test-token": createMockElement({ hidden: true }),
   };
@@ -165,6 +191,29 @@ function createConnectionContext(cluster) {
       cluster,
       async getParsedTokenAccountsByOwner() {
         return { value: [] };
+      },
+      async getMultipleAccountsInfo(publicKeys) {
+        return new Array(publicKeys.length).fill(null);
+      },
+      async getBalance() {
+        return 10_000_000;
+      },
+      async getMinimumBalanceForRentExemption() {
+        return 2_039_280;
+      },
+      async getLatestBlockhash() {
+        return {
+          blockhash: "5M8Qp6Hf6mCwNtt8wX8FzfdjU8aZfR4s2A9jNq6tFYfV",
+          lastValidBlockHeight: 123,
+        };
+      },
+      async getFeeForMessage() {
+        return {
+          value: 5_000,
+        };
+      },
+      async simulateTransaction() {
+        return { value: { err: null } };
       },
     },
   };
@@ -490,6 +539,237 @@ describe("createWalletGeneratorApp", () => {
       createEvent("change", { target: elements["token-mint-select"] }),
     );
     expect(app.getState().tokenInventory.selectedMint).toBe("MintBBB");
+  });
+
+  it("keeps distribution planner disabled before wallet/token/recipient prerequisites", async () => {
+    const { documentRef, elements } = createMockDocument();
+
+    createWalletGeneratorApp({
+      document: documentRef,
+      keypair: createMockKeypairGenerator([
+        "FfsfLyRsxuVz4KtanH9tunuYyduvb8ZLTtWqP27yxM8J",
+      ]),
+      phantomProvider: createMockPhantomProvider({
+        publicKey: "So11111111111111111111111111111111111111112",
+      }),
+      createConnectionContext,
+      fetchTokenInventory: async () => [],
+    });
+
+    expect(elements["distribution-total-amount"].disabled).toBe(true);
+    expect(elements["distribution-preflight-btn"].disabled).toBe(true);
+    expect(elements["distribution-start-btn"].disabled).toBe(true);
+    expect(elements["distribution-plan-status"].textContent).toBe(
+      "Connect Phantom to plan a token distribution.",
+    );
+
+    await elements["phantom-connect-btn"].dispatchEvent(createEvent("click"));
+
+    expect(elements["distribution-total-amount"].disabled).toBe(true);
+    expect(elements["distribution-preflight-btn"].disabled).toBe(true);
+    expect(elements["distribution-start-btn"].disabled).toBe(true);
+    expect(elements["distribution-plan-status"].textContent).toBe(
+      "Select a token mint for distribution.",
+    );
+  });
+
+  it("updates distribution plan summary after token, recipients, and amount are set", async () => {
+    const { documentRef, elements } = createMockDocument();
+    createWalletGeneratorApp({
+      document: documentRef,
+      keypair: createMockKeypairGenerator([
+        "FfsfLyRsxuVz4KtanH9tunuYyduvb8ZLTtWqP27yxM8J",
+      ]),
+      phantomProvider: createMockPhantomProvider({
+        publicKey: "So11111111111111111111111111111111111111112",
+      }),
+      createConnectionContext,
+      fetchTokenInventory: async () => [
+        {
+          mint: "So11111111111111111111111111111111111111112",
+          decimals: 2,
+          balanceRaw: 100000n,
+          balanceUi: "1000",
+          displayName: "Plan Token",
+          tokenProgramId: TOKEN_PROGRAM_ID.toBase58(),
+          isClassicSpl: true,
+        },
+      ],
+    });
+
+    await elements["phantom-connect-btn"].dispatchEvent(createEvent("click"));
+    elements["wallet-count"].value = "1";
+    await elements["generator-form"].dispatchEvent(createEvent("submit"));
+    elements["distribution-total-amount"].value = "10";
+    await elements["distribution-total-amount"].dispatchEvent(
+      createEvent("input", { target: elements["distribution-total-amount"] }),
+    );
+
+    expect(elements["distribution-total-amount"].disabled).toBe(false);
+    expect(elements["distribution-plan-summary"].textContent).toMatch(/Per recipient: 10/);
+    expect(elements["distribution-plan-summary"].textContent).toMatch(
+      /Remainder: 0\. Remainder stays in source wallet/,
+    );
+    expect(elements["distribution-preflight-btn"].disabled).toBe(false);
+  });
+
+  it("requires mainnet checklist acknowledgement before enabling preflight", async () => {
+    const { documentRef, elements } = createMockDocument();
+    createWalletGeneratorApp({
+      document: documentRef,
+      keypair: createMockKeypairGenerator([
+        "FfsfLyRsxuVz4KtanH9tunuYyduvb8ZLTtWqP27yxM8J",
+      ]),
+      phantomProvider: createMockPhantomProvider({
+        publicKey: "So11111111111111111111111111111111111111112",
+      }),
+      createConnectionContext,
+      fetchTokenInventory: async () => [
+        {
+          mint: "So11111111111111111111111111111111111111112",
+          decimals: 2,
+          balanceRaw: 100000n,
+          balanceUi: "1000",
+          displayName: "Mainnet Token",
+          tokenProgramId: TOKEN_PROGRAM_ID.toBase58(),
+          isClassicSpl: true,
+        },
+      ],
+    });
+
+    await elements["phantom-connect-btn"].dispatchEvent(createEvent("click"));
+    elements["wallet-count"].value = "1";
+    await elements["generator-form"].dispatchEvent(createEvent("submit"));
+    elements["cluster-select"].value = "mainnet-beta";
+    await elements["cluster-select"].dispatchEvent(
+      createEvent("change", { target: elements["cluster-select"] }),
+    );
+    elements["distribution-total-amount"].value = "10";
+    await elements["distribution-total-amount"].dispatchEvent(
+      createEvent("input", { target: elements["distribution-total-amount"] }),
+    );
+
+    expect(elements["distribution-mainnet-checklist"].hidden).toBe(false);
+    expect(elements["distribution-preflight-btn"].disabled).toBe(true);
+
+    elements["distribution-mainnet-ack-fees"].checked = true;
+    await elements["distribution-mainnet-ack-fees"].dispatchEvent(createEvent("change"));
+    elements["distribution-mainnet-ack-irreversible"].checked = true;
+    await elements["distribution-mainnet-ack-irreversible"].dispatchEvent(
+      createEvent("change"),
+    );
+
+    expect(elements["distribution-preflight-btn"].disabled).toBe(false);
+  });
+
+  it("requires preflight before start and then emits phase-5 start stub", async () => {
+    const { documentRef, elements } = createMockDocument();
+    const preflightCalls = [];
+    createWalletGeneratorApp({
+      document: documentRef,
+      keypair: createMockKeypairGenerator(),
+      phantomProvider: createMockPhantomProvider({
+        publicKey: "So11111111111111111111111111111111111111112",
+      }),
+      createConnectionContext,
+      fetchTokenInventory: async () => [
+        {
+          mint: "So11111111111111111111111111111111111111112",
+          decimals: 2,
+          balanceRaw: 100000n,
+          balanceUi: "1000",
+          displayName: "Start Token",
+          tokenProgramId: TOKEN_PROGRAM_ID.toBase58(),
+          isClassicSpl: true,
+        },
+      ],
+      inspectRecipientAtas: async () => ({
+        entries: [
+          {
+            recipient: "FfsfLyRsxuVz4KtanH9tunuYyduvb8ZLTtWqP27yxM8J",
+            recipientAta: "9eaRFZmkoBfidF9n9ea32sAJJBEWcGK1vhaPsbLDsU9F",
+            needsAta: false,
+          },
+        ],
+        missingAtaCount: 0,
+        existingAtaCount: 1,
+      }),
+      estimateDistributionHeadroom: async () => ({
+        walletLamports: 5_000_000,
+        requiredLamports: 5_000,
+        feeExistingAtaLamports: 5_000,
+        feeMissingAtaLamports: 7_000,
+        ataRentLamportsEach: 2_039_280,
+        missingAtaCount: 0,
+        safetyBufferLamports: 2_000_000,
+        passes: true,
+      }),
+      runDistributionPreflight: async () => {
+        preflightCalls.push("called");
+        return {
+          passed: true,
+          scannedCount: 1,
+          failedCount: 0,
+          failures: [],
+        };
+      },
+    });
+
+    await elements["phantom-connect-btn"].dispatchEvent(createEvent("click"));
+    elements["wallet-count"].value = "1";
+    await elements["generator-form"].dispatchEvent(createEvent("submit"));
+    elements["distribution-total-amount"].value = "10";
+    await elements["distribution-total-amount"].dispatchEvent(
+      createEvent("input", { target: elements["distribution-total-amount"] }),
+    );
+
+    expect(elements["distribution-start-btn"].disabled).toBe(true);
+    await elements["distribution-start-btn"].dispatchEvent(createEvent("click"));
+    expect(elements.status.textContent).toMatch(/blocked until all checks pass/i);
+
+    await elements["distribution-preflight-btn"].dispatchEvent(createEvent("click"));
+    expect(preflightCalls).toHaveLength(1);
+    expect(elements["distribution-preflight-status"].textContent).toMatch(/Preflight passed/);
+    expect(elements["distribution-start-btn"].disabled).toBe(false);
+
+    await elements["distribution-start-btn"].dispatchEvent(createEvent("click"));
+    expect(elements.status.textContent).toMatch(/Phase 5 will execute sequential transfers/);
+  });
+
+  it("blocks Token-2022 selections from progressing to preflight", async () => {
+    const { documentRef, elements } = createMockDocument();
+    createWalletGeneratorApp({
+      document: documentRef,
+      keypair: createMockKeypairGenerator(),
+      phantomProvider: createMockPhantomProvider({
+        publicKey: "So11111111111111111111111111111111111111112",
+      }),
+      createConnectionContext,
+      fetchTokenInventory: async () => [
+        {
+          mint: "So11111111111111111111111111111111111111112",
+          decimals: 2,
+          balanceRaw: 100000n,
+          balanceUi: "1000",
+          displayName: "Token-2022 Asset",
+          tokenProgramId: TOKEN_2022_PROGRAM_ID.toBase58(),
+          isClassicSpl: false,
+        },
+      ],
+    });
+
+    await elements["phantom-connect-btn"].dispatchEvent(createEvent("click"));
+    elements["wallet-count"].value = "1";
+    await elements["generator-form"].dispatchEvent(createEvent("submit"));
+    elements["distribution-total-amount"].value = "10";
+    await elements["distribution-total-amount"].dispatchEvent(
+      createEvent("input", { target: elements["distribution-total-amount"] }),
+    );
+
+    expect(elements["distribution-plan-status"].textContent).toMatch(/Token-2022/);
+    expect(elements["distribution-preflight-btn"].disabled).toBe(true);
+    expect(elements["distribution-start-btn"].disabled).toBe(true);
+    expect(elements["distribution-plan-status"].classList.contains("error")).toBe(true);
   });
 
   it("runs mint wizard and refreshes token inventory with new mint selected", async () => {

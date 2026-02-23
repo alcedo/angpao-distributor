@@ -94,6 +94,8 @@ describe("tokenService", () => {
         decimals: 2,
         balanceRaw: 1250n,
         balanceUi: "12.5",
+        tokenProgramId: TOKEN_PROGRAM_ID.toBase58(),
+        isClassicSpl: true,
       },
     ]);
   });
@@ -169,6 +171,8 @@ describe("tokenService", () => {
     expect(items[0].decimals).toBe(0);
     expect(items[0].balanceRaw).toBe(42n);
     expect(items[0].balanceUi).toBe("42");
+    expect(items[0].tokenProgramId).toBe(TOKEN_PROGRAM_ID.toBase58());
+    expect(items[0].isClassicSpl).toBe(true);
     expect(items[0].displayName).toBe("Wrapped SOL");
     expect(items[0].logoUrl).toBe("https://cdn.example.com/wsol.png");
   });
@@ -217,6 +221,8 @@ describe("tokenService", () => {
 
     expect(items).toHaveLength(1);
     expect(items[0].mint).toBe(mint);
+    expect(items[0].tokenProgramId).toBe(TOKEN_PROGRAM_ID.toBase58());
+    expect(items[0].isClassicSpl).toBe(true);
     expect(items[0].displayName).toBe("USD Coin");
     expect(items[0].symbol).toBe("USDC");
     expect(items[0].logoUrl).toContain("/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png");
@@ -409,6 +415,14 @@ describe("tokenService", () => {
     expect(items.map((item) => item.mint)).toEqual([classicMint, token2022Mint].sort());
     expect(items.find((item) => item.mint === classicMint)?.balanceUi).toBe("1");
     expect(items.find((item) => item.mint === token2022Mint)?.balanceUi).toBe("9");
+    expect(items.find((item) => item.mint === classicMint)?.tokenProgramId).toBe(
+      TOKEN_PROGRAM_ID.toBase58(),
+    );
+    expect(items.find((item) => item.mint === classicMint)?.isClassicSpl).toBe(true);
+    expect(items.find((item) => item.mint === token2022Mint)?.tokenProgramId).toBe(
+      TOKEN_2022_PROGRAM_ID.toBase58(),
+    );
+    expect(items.find((item) => item.mint === token2022Mint)?.isClassicSpl).toBe(false);
   });
 
   it("parses metadata account data and resolves display-name fallbacks", () => {
