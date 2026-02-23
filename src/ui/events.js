@@ -46,6 +46,43 @@ export function bindMintEvents(optionalElements, handlers) {
   }
 }
 
+export function bindDistributionEvents(optionalElements, handlers) {
+  if (optionalElements.distributionTotalAmountInput) {
+    optionalElements.distributionTotalAmountInput.addEventListener(
+      "input",
+      handlers.onDistributionAmountInput,
+    );
+  }
+
+  if (optionalElements.distributionMainnetAckFees) {
+    optionalElements.distributionMainnetAckFees.addEventListener(
+      "change",
+      handlers.onDistributionChecklistChange,
+    );
+  }
+
+  if (optionalElements.distributionMainnetAckIrreversible) {
+    optionalElements.distributionMainnetAckIrreversible.addEventListener(
+      "change",
+      handlers.onDistributionChecklistChange,
+    );
+  }
+
+  if (optionalElements.distributionPreflightBtn) {
+    optionalElements.distributionPreflightBtn.addEventListener(
+      "click",
+      handlers.onRunPreflight,
+    );
+  }
+
+  if (optionalElements.distributionStartBtn) {
+    optionalElements.distributionStartBtn.addEventListener(
+      "click",
+      handlers.onStartDistributionStub,
+    );
+  }
+}
+
 export function bindTabEvents(optionalElements, handlers) {
   if (optionalElements.toolTabMintTestToken) {
     optionalElements.toolTabMintTestToken.addEventListener(

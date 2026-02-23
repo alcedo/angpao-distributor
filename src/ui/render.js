@@ -1,3 +1,5 @@
+import { formatRawWithDecimals } from "../domain/split.js";
+
 export function setStatus(statusEl, message, isError = false) {
   statusEl.textContent = message;
   statusEl.classList.toggle("error", isError);
@@ -267,6 +269,110 @@ export function renderMintWizardState(optionalElements, model) {
   }
 }
 
+export function renderDistributionPlannerState(optionalElements, model) {
+  const {
+    cluster,
+    selectedToken,
+    totalUiAmount,
+    plan,
+    planError,
+    checks,
+    gate,
+    feeEstimate,
+    feeEstimateError,
+    preflight,
+    mainnetChecklist,
+  } = model;
+  const isMainnet = cluster === "mainnet-beta";
+  const inputDisabled =
+    !checks.walletConnected || !checks.tokenSelected || !checks.recipientsReady;
+  const checklistDisabled =
+    !isMainnet ||
+    !checks.walletConnected ||
+    !checks.tokenSelected ||
+    !checks.tokenClassicSupported ||
+    !checks.recipientsReady ||
+    !checks.amountValid ||
+    !checks.tokenBalanceSufficient ||
+    !checks.feeHeadroomSufficient;
+
+  if (optionalElements.distributionTotalAmountInput) {
+    optionalElements.distributionTotalAmountInput.value = totalUiAmount || "";
+    optionalElements.distributionTotalAmountInput.disabled = inputDisabled;
+  }
+
+  if (optionalElements.distributionMainnetChecklist) {
+    optionalElements.distributionMainnetChecklist.hidden = !isMainnet;
+  }
+
+  if (optionalElements.distributionMainnetAckFees) {
+    optionalElements.distributionMainnetAckFees.checked = Boolean(
+      mainnetChecklist?.acknowledgeFees,
+    );
+    optionalElements.distributionMainnetAckFees.disabled = checklistDisabled;
+  }
+
+  if (optionalElements.distributionMainnetAckIrreversible) {
+    optionalElements.distributionMainnetAckIrreversible.checked = Boolean(
+      mainnetChecklist?.acknowledgeIrreversible,
+    );
+    optionalElements.distributionMainnetAckIrreversible.disabled = checklistDisabled;
+  }
+
+  if (optionalElements.distributionPlanStatus) {
+    const statusModel = buildDistributionPlanStatusMessage({
+      cluster,
+      checks,
+      selectedToken,
+      planError,
+      feeEstimateError,
+      preflight,
+    });
+    optionalElements.distributionPlanStatus.classList.toggle("error", statusModel.isError);
+    optionalElements.distributionPlanStatus.textContent = statusModel.message;
+  }
+
+  if (optionalElements.distributionPlanSummary) {
+    optionalElements.distributionPlanSummary.textContent = buildDistributionPlanSummary({
+      selectedToken,
+      checks,
+      plan,
+      feeEstimate,
+      feeEstimateError,
+    });
+  }
+
+  if (optionalElements.distributionPreflightBtn) {
+    optionalElements.distributionPreflightBtn.textContent =
+      preflight?.status === "running" ? "Running Preflight..." : "Run Preflight";
+    optionalElements.distributionPreflightBtn.disabled = !gate.canRunPreflight;
+  }
+
+  if (optionalElements.distributionStartBtn) {
+    optionalElements.distributionStartBtn.textContent = "Start Distribution";
+    optionalElements.distributionStartBtn.disabled = !gate.canStartDistribution;
+  }
+
+  if (optionalElements.distributionPreflightStatus) {
+    const preflightStatusModel = buildDistributionPreflightStatusMessage(preflight);
+    optionalElements.distributionPreflightStatus.classList.toggle(
+      "error",
+      preflightStatusModel.isError,
+    );
+    optionalElements.distributionPreflightStatus.textContent = preflightStatusModel.message;
+  }
+
+  if (optionalElements.distributionPreflightFailures) {
+    const failures = Array.isArray(preflight?.failures) ? preflight.failures : [];
+    optionalElements.distributionPreflightFailures.innerHTML = failures
+      .map(
+        (failure) =>
+          `<li class="distribution-preflight-failure">${escapeHtml(failure.recipient)}: ${escapeHtml(failure.error)}</li>`,
+      )
+      .join("");
+  }
+}
+
 function formatPublicKey(publicKey) {
   if (publicKey.length <= 12) {
     return publicKey;
@@ -316,6 +422,180 @@ function buildTokenInventoryMessage(model) {
   }
 
   return "Connect Phantom to load SPL token balances for distribution.";
+}
+
+function buildDistributionPlanStatusMessage(model) {
+  const { cluster, checks, selectedToken, planError, feeEstimateError, preflight } = model;
+
+  if (!checks.walletConnected) {
+    return {
+      message: "Connect Phantom to plan a token distribution.",
+      isError: false,
+    };
+  }
+
+  if (!checks.tokenSelected) {
+    return {
+      message: "Select a token mint for distribution.",
+      isError: false,
+    };
+  }
+
+  if (!checks.tokenClassicSupported) {
+    return {
+      message:
+        "Selected token uses Token-2022. Phase 4 distribution planning supports classic SPL tokens only.",
+      isError: true,
+    };
+  }
+
+  if (!checks.recipientsReady) {
+    return {
+      message: "Generate or import at least one recipient before planning distribution.",
+      isError: true,
+    };
+  }
+
+  if (!checks.amountValid) {
+    return {
+      message: planError || "Enter a valid total distribution amount greater than zero.",
+      isError: true,
+    };
+  }
+
+  if (!checks.tokenBalanceSufficient) {
+    return {
+      message: `Selected token balance (${selectedToken?.balanceUi || "0"}) is insufficient for the planned transfer.`,
+      isError: true,
+    };
+  }
+
+  if (feeEstimateError) {
+    return {
+      message: `Unable to estimate SOL headroom: ${feeEstimateError}`,
+      isError: true,
+    };
+  }
+
+  if (!checks.feeHeadroomSufficient) {
+    return {
+      message:
+        "Insufficient SOL balance for transaction fees and ATA rent. Fund the source wallet and try again.",
+      isError: true,
+    };
+  }
+
+  if (cluster === "mainnet-beta" && !checks.mainnetChecklistAccepted) {
+    return {
+      message: "Complete both mainnet distribution acknowledgements before running preflight.",
+      isError: true,
+    };
+  }
+
+  if (preflight?.status === "running") {
+    return {
+      message: "Preflight simulation is running for all planned transfers.",
+      isError: false,
+    };
+  }
+
+  if (preflight?.status === "failed") {
+    return {
+      message: `Preflight failed for ${preflight.failedCount} recipient(s). Review failures before continuing.`,
+      isError: true,
+    };
+  }
+
+  if (preflight?.status === "passed") {
+    return {
+      message: "Preflight passed. Distribution is ready to start.",
+      isError: false,
+    };
+  }
+
+  return {
+    message: "Static validations passed. Run preflight simulation to continue.",
+    isError: false,
+  };
+}
+
+function buildDistributionPlanSummary(model) {
+  const { selectedToken, checks, plan, feeEstimate, feeEstimateError } = model;
+
+  if (!checks.tokenSelected) {
+    return "Distribution plan preview appears after selecting a token.";
+  }
+
+  if (!checks.amountValid || !plan) {
+    return "Enter a total amount to compute an equal-split preview.";
+  }
+
+  const perRecipientUi = formatRawWithDecimals(plan.perRecipientRaw, plan.decimals);
+  const plannedTransferUi = formatRawWithDecimals(plan.plannedTransferTotalRaw, plan.decimals);
+  const remainderUi = formatRawWithDecimals(plan.remainderRaw, plan.decimals);
+  let summary =
+    `Token: ${selectedToken?.displayName || selectedToken?.mint || "Unknown"}. ` +
+    `Recipients: ${plan.recipientCount}. Per recipient: ${perRecipientUi}. ` +
+    `Planned transfer total: ${plannedTransferUi}. Remainder: ${remainderUi}. ` +
+    "Remainder stays in source wallet.";
+
+  if (feeEstimate) {
+    summary +=
+      ` Estimated SOL required: ${formatLamportsAsSol(feeEstimate.requiredLamports)} SOL` +
+      ` (wallet: ${formatLamportsAsSol(feeEstimate.walletLamports)} SOL).`;
+  } else if (checks.tokenBalanceSufficient && !feeEstimateError) {
+    summary += " Estimating SOL fee headroom...";
+  }
+
+  return summary;
+}
+
+function buildDistributionPreflightStatusMessage(preflight) {
+  if (preflight?.status === "running") {
+    return {
+      message: "Simulating distribution transactions...",
+      isError: false,
+    };
+  }
+
+  if (preflight?.status === "passed") {
+    return {
+      message: `Preflight passed for ${preflight.scannedCount} recipient(s).`,
+      isError: false,
+    };
+  }
+
+  if (preflight?.status === "failed") {
+    return {
+      message: `Preflight failed for ${preflight.failedCount} of ${preflight.scannedCount} recipient(s).`,
+      isError: true,
+    };
+  }
+
+  return {
+    message: "Preflight not run yet.",
+    isError: false,
+  };
+}
+
+function formatLamportsAsSol(lamports) {
+  let value = 0n;
+  if (typeof lamports === "bigint") {
+    value = lamports;
+  } else if (typeof lamports === "number" && Number.isSafeInteger(lamports)) {
+    value = BigInt(lamports);
+  } else if (typeof lamports === "string" && /^\d+$/.test(lamports)) {
+    value = BigInt(lamports);
+  }
+
+  const lamportsPerSol = 1_000_000_000n;
+  const whole = value / lamportsPerSol;
+  const fraction = value % lamportsPerSol;
+  const fractionText = fraction.toString().padStart(9, "0").replace(/0+$/, "");
+  if (!fractionText) {
+    return whole.toString();
+  }
+  return `${whole.toString()}.${fractionText}`;
 }
 
 function renderTokenOption(value, label) {

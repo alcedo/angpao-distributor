@@ -519,6 +519,37 @@ tbody tr:hover {
   line-height: 1.4;
 }
 
+.distribution-planner .row {
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+#distribution-total-amount {
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+
+#distribution-preflight-btn,
+#distribution-start-btn {
+  flex: 0 0 auto;
+}
+
+.distribution-mainnet-checklist {
+  margin-top: 0.65rem;
+  padding-top: 0.65rem;
+  border-top: 1px dashed rgba(148, 163, 184, 0.32);
+}
+
+.distribution-failure-list {
+  margin-top: 0.35rem;
+}
+
+.distribution-preflight-failure {
+  color: #fca5a5;
+  font-family: "JetBrains Mono", "Fira Code", "Roboto Mono", monospace;
+  font-size: 0.78rem;
+}
+
 @keyframes rise {
   from {
     transform: translateY(10px);

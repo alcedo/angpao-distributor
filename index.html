@@ -123,6 +123,64 @@
             <p id="recipient-summary" class="status">No CSV recipients imported.</p>
             <ul id="recipient-diagnostics" class="diagnostics"></ul>
           </div>
+
+          <div class="controls distribution-planner">
+            <div class="field-group">
+              <label for="distribution-total-amount">Distribution Planner (Equal Split)</label>
+              <p class="field-hint">
+                Enter a total token amount to split equally across the current run set.
+              </p>
+              <div class="row">
+                <input
+                  id="distribution-total-amount"
+                  type="text"
+                  inputmode="decimal"
+                  placeholder="Total amount to distribute"
+                />
+                <button
+                  id="distribution-preflight-btn"
+                  type="button"
+                  class="inline-secondary-btn"
+                  disabled
+                >
+                  Run Preflight
+                </button>
+                <button
+                  id="distribution-start-btn"
+                  type="button"
+                  class="inline-secondary-btn"
+                  disabled
+                >
+                  Start Distribution
+                </button>
+              </div>
+              <div id="distribution-mainnet-checklist" class="distribution-mainnet-checklist" hidden>
+                <div class="row row-checkbox">
+                  <input id="distribution-mainnet-ack-fees" type="checkbox" />
+                  <label for="distribution-mainnet-ack-fees" class="checkbox-label">
+                    I understand mainnet distribution uses real SOL for fees and ATA rent.
+                  </label>
+                </div>
+                <div class="row row-checkbox">
+                  <input id="distribution-mainnet-ack-irreversible" type="checkbox" />
+                  <label for="distribution-mainnet-ack-irreversible" class="checkbox-label">
+                    I understand token transfers are irreversible once confirmed on-chain.
+                  </label>
+                </div>
+              </div>
+            </div>
+            <p id="distribution-plan-status" class="status">
+              Connect Phantom to plan a token distribution.
+            </p>
+            <p id="distribution-plan-summary" class="field-hint">
+              Distribution plan preview appears after selecting a token.
+            </p>
+            <p id="distribution-preflight-status" class="status">Preflight not run yet.</p>
+            <ul
+              id="distribution-preflight-failures"
+              class="diagnostics distribution-failure-list"
+            ></ul>
+          </div>
         </section>
 
         <section id="tool-panel-mint-test-token" class="tab-panel" hidden>
