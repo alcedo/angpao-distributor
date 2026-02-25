@@ -349,6 +349,129 @@ describe("tokenService", () => {
     expect(items[0].balanceUi).toBe("42");
   });
 
+  it("falls back to raw token-account lookup when parsed lookup is denied", async () => {
+    const ownerPublicKey = "11111111111111111111111111111111";
+    const mint = PublicKey.unique().toBase58();
+    let rawLookupCalls = 0;
+    const connection = {
+      async getParsedTokenAccountsByOwner() {
+        throw new Error(
+          '403 : [{"jsonrpc":"2.0","error":{"code":403,"message":"Access forbidden"}}]',
+        );
+      },
+      async getTokenAccountsByOwner(_, filter) {
+        rawLookupCalls += 1;
+        if (String(filter?.programId) !== TOKEN_PROGRAM_ID.toBase58()) {
+          return { value: [] };
+        }
+        return {
+          value: [
+            {
+              pubkey: PublicKey.unique(),
+              account: {
+                owner: TOKEN_PROGRAM_ID,
+                data: [
+                  Buffer.from(
+                    buildRawTokenAccountData({
+                      mint,
+                      owner: ownerPublicKey,
+                      amount: 1234500n,
+                    }),
+                  ).toString("base64"),
+                  "base64",
+                ],
+              },
+            },
+          ],
+        };
+      },
+      async getMultipleAccountsInfo(publicKeys) {
+        return publicKeys.map((pubkey) =>
+          pubkey.toBase58() === mint ? { data: buildRawMintAccountData(6) } : null,
+        );
+      },
+    };
+
+    const items = await fetchClassicSplTokenHoldings(connection, ownerPublicKey);
+
+    expect(rawLookupCalls).toBeGreaterThan(0);
+    expect(items).toHaveLength(1);
+    expect(items[0].mint).toBe(mint);
+    expect(items[0].balanceRaw).toBe(1234500n);
+    expect(items[0].balanceUi).toBe("1.2345");
+  });
+
+  it("uses raw lookup on fallback RPC endpoint when parsed lookup remains denied", async () => {
+    const ownerPublicKey = "11111111111111111111111111111111";
+    const mint = PublicKey.unique().toBase58();
+    const initialConnection = {
+      rpcEndpoint: "https://api.mainnet-beta.solana.com",
+      async getParsedTokenAccountsByOwner() {
+        throw new Error(
+          '403 : [{"jsonrpc":"2.0","error":{"code":403,"message":"Access forbidden"}}]',
+        );
+      },
+      async getTokenAccountsByOwner() {
+        throw new Error(
+          '403 : [{"jsonrpc":"2.0","error":{"code":403,"message":"Access forbidden"}}]',
+        );
+      },
+      async getMultipleAccountsInfo() {
+        return [];
+      },
+    };
+
+    const seenEndpoints = [];
+    const items = await fetchClassicSplTokenHoldings(initialConnection, ownerPublicKey, {
+      connectionFactory(endpoint) {
+        seenEndpoints.push(endpoint);
+        return {
+          rpcEndpoint: endpoint,
+          async getParsedTokenAccountsByOwner() {
+            throw new Error(
+              '403 : [{"jsonrpc":"2.0","error":{"code":403,"message":"Access forbidden"}}]',
+            );
+          },
+          async getTokenAccountsByOwner(_, filter) {
+            if (String(filter?.programId) !== TOKEN_PROGRAM_ID.toBase58()) {
+              return { value: [] };
+            }
+            return {
+              value: [
+                {
+                  pubkey: PublicKey.unique(),
+                  account: {
+                    owner: TOKEN_PROGRAM_ID,
+                    data: [
+                      Buffer.from(
+                        buildRawTokenAccountData({
+                          mint,
+                          owner: ownerPublicKey,
+                          amount: 42n,
+                        }),
+                      ).toString("base64"),
+                      "base64",
+                    ],
+                  },
+                },
+              ],
+            };
+          },
+          async getMultipleAccountsInfo(publicKeys) {
+            return publicKeys.map((pubkey) =>
+              pubkey.toBase58() === mint ? { data: buildRawMintAccountData(0) } : null,
+            );
+          },
+        };
+      },
+    });
+
+    expect(seenEndpoints.length).toBeGreaterThan(0);
+    expect(items).toHaveLength(1);
+    expect(items[0].mint).toBe(mint);
+    expect(items[0].balanceUi).toBe("42");
+  });
+
   it("includes token holdings from both classic SPL and token-2022 programs", async () => {
     const classicMint = PublicKey.unique().toBase58();
     const token2022Mint = PublicKey.unique().toBase58();
@@ -443,6 +566,65 @@ describe("tokenService", () => {
       "So11...1112",
     );
   });
+
+  it("parseTokenMetadataAccount returns null for null input", () => {
+    expect(parseTokenMetadataAccount(null)).toBeNull();
+    expect(parseTokenMetadataAccount(undefined)).toBeNull();
+    expect(parseTokenMetadataAccount(new Uint8Array([]))).toBeNull();
+  });
+
+  it("parseTokenMetadataAccount returns null for truncated data", () => {
+    expect(parseTokenMetadataAccount(new Uint8Array(10))).toBeNull();
+  });
+
+  it("resolveTokenDisplayName returns short mint when name and symbol are absent", () => {
+    const mint = "So11111111111111111111111111111111111111112";
+    expect(resolveTokenDisplayName({ mint })).toBe("So11...1112");
+  });
+
+  it("resolveTokenDisplayName prefers name over symbol", () => {
+    expect(resolveTokenDisplayName({ mint: "Mint1", name: "Full Name", symbol: "SYM" })).toBe(
+      "Full Name",
+    );
+  });
+
+  it("resolveTokenDisplayName falls back to symbol when name is empty", () => {
+    expect(resolveTokenDisplayName({ mint: "Mint1", name: "", symbol: "SYM" })).toBe("SYM");
+  });
+
+  it("resolveTokenDisplayName handles null asset gracefully", () => {
+    expect(resolveTokenDisplayName(null)).toBeDefined();
+    expect(typeof resolveTokenDisplayName(null)).toBe("string");
+  });
+
+  it("fetchClassicSplTokenHoldings throws when connection is missing", async () => {
+    await expect(
+      fetchClassicSplTokenHoldings(null, "11111111111111111111111111111111"),
+    ).rejects.toThrow(/Missing Solana connection/i);
+  });
+
+  it("fetchClassicSplTokenHoldings throws when owner is missing", async () => {
+    await expect(
+      fetchClassicSplTokenHoldings(
+        { async getParsedTokenAccountsByOwner() { return { value: [] }; } },
+        null,
+      ),
+    ).rejects.toThrow(/Missing owner public key/i);
+  });
+
+  it("returns empty array when wallet has no token holdings", async () => {
+    const connection = {
+      async getParsedTokenAccountsByOwner() { return { value: [] }; },
+      async getMultipleAccountsInfo() { return []; },
+    };
+
+    const items = await fetchClassicSplTokenHoldings(
+      connection,
+      "11111111111111111111111111111111",
+    );
+
+    expect(items).toEqual([]);
+  });
 });
 
 function buildMetadataAccountData(name, symbol, uri = "") {
@@ -477,4 +659,26 @@ function buildMetadataAccountData(name, symbol, uri = "") {
   pushBytes(encodedUri);
 
   return new Uint8Array(bytes);
+}
+
+function buildRawTokenAccountData({ mint, owner, amount }) {
+  const bytes = new Uint8Array(165);
+  bytes.set(new PublicKey(mint).toBytes(), 0);
+  bytes.set(new PublicKey(owner).toBytes(), 32);
+  writeUint64LE(bytes, 64, BigInt(amount));
+  return bytes;
+}
+
+function buildRawMintAccountData(decimals) {
+  const bytes = new Uint8Array(82);
+  bytes[44] = Number(decimals);
+  return bytes;
+}
+
+function writeUint64LE(target, offset, value) {
+  let remaining = BigInt(value);
+  for (let index = 0; index < 8; index += 1) {
+    target[offset + index] = Number(remaining & 0xffn);
+    remaining >>= 8n;
+  }
 }

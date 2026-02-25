@@ -472,9 +472,7 @@ async function getParsedTokenAccountsByOwnerForProgramWithFallback(
   options,
 ) {
   try {
-    const response = await connection.getParsedTokenAccountsByOwner(owner, {
-      programId: tokenProgramId,
-    });
+    const response = await fetchTokenAccountsForProgram(connection, owner, tokenProgramId);
     return {
       response,
       sourceConnection: connection,
@@ -520,9 +518,11 @@ async function tryFallbackRpcEndpoints(connection, owner, options, tokenProgramI
         continue;
       }
 
-      const response = await fallbackConnection.getParsedTokenAccountsByOwner(owner, {
-        programId: tokenProgramId,
-      });
+      const response = await fetchTokenAccountsForProgram(
+        fallbackConnection,
+        owner,
+        tokenProgramId,
+      );
       return {
         response,
         sourceConnection: fallbackConnection,
@@ -533,6 +533,228 @@ async function tryFallbackRpcEndpoints(connection, owner, options, tokenProgramI
   }
 
   return null;
+}
+
+async function fetchTokenAccountsForProgram(connection, owner, tokenProgramId) {
+  try {
+    return await connection.getParsedTokenAccountsByOwner(owner, {
+      programId: tokenProgramId,
+    });
+  } catch (error) {
+    if (!isRpcAccessForbiddenError(error)) {
+      throw error;
+    }
+
+    const rawFallback = await tryRawTokenAccountsLookup(
+      connection,
+      owner,
+      tokenProgramId,
+    );
+    if (rawFallback) {
+      return rawFallback;
+    }
+
+    throw error;
+  }
+}
+
+async function tryRawTokenAccountsLookup(connection, owner, tokenProgramId) {
+  if (
+    !connection ||
+    typeof connection.getTokenAccountsByOwner !== "function" ||
+    typeof connection.getMultipleAccountsInfo !== "function"
+  ) {
+    return null;
+  }
+
+  let response;
+  try {
+    response = await connection.getTokenAccountsByOwner(
+      owner,
+      {
+        programId: tokenProgramId,
+      },
+      {
+        encoding: "base64",
+      },
+    );
+  } catch {
+    return null;
+  }
+
+  const rawAccounts = Array.isArray(response?.value) ? response.value : [];
+  if (!rawAccounts.length) {
+    return { value: [] };
+  }
+
+  const parsedAccounts = await parseRawTokenAccounts(
+    rawAccounts,
+    connection,
+    tokenProgramId,
+  );
+  return { value: parsedAccounts };
+}
+
+async function parseRawTokenAccounts(rawAccounts, connection, tokenProgramId) {
+  const parsedRows = rawAccounts
+    .map((entry) => parseRawTokenAccountRow(entry, tokenProgramId))
+    .filter(Boolean);
+  if (!parsedRows.length) {
+    return [];
+  }
+
+  const decimalsByMint = await loadMintDecimalsByMint(
+    connection,
+    [...new Set(parsedRows.map((row) => row.mint))],
+  );
+  const normalizedProgramId = tokenProgramId.toBase58();
+
+  return parsedRows
+    .map((row) => {
+      const decimals = decimalsByMint.get(row.mint);
+      if (!Number.isInteger(decimals) || decimals < 0) {
+        return null;
+      }
+
+      return {
+        pubkey: row.pubkey,
+        account: {
+          owner: row.ownerProgramId || normalizedProgramId,
+          data: {
+            parsed: {
+              info: {
+                mint: row.mint,
+                tokenAmount: {
+                  amount: row.amountRaw.toString(),
+                  decimals,
+                },
+              },
+            },
+          },
+        },
+      };
+    })
+    .filter(Boolean);
+}
+
+function parseRawTokenAccountRow(entry, tokenProgramId) {
+  const bytes = decodeRpcAccountData(entry?.account?.data);
+  if (!bytes || bytes.length < 72) {
+    return null;
+  }
+
+  let mint;
+  try {
+    mint = new PublicKey(bytes.slice(0, 32)).toBase58();
+  } catch {
+    return null;
+  }
+
+  const amountRaw = readUint64LE(bytes, 64);
+  if (amountRaw === null) {
+    return null;
+  }
+
+  return {
+    pubkey: toPublicKeyText(entry?.pubkey),
+    mint,
+    amountRaw,
+    ownerProgramId: toPublicKeyText(entry?.account?.owner) || tokenProgramId.toBase58(),
+  };
+}
+
+function decodeRpcAccountData(data) {
+  if (Array.isArray(data) && typeof data[0] === "string") {
+    try {
+      return Uint8Array.from(Buffer.from(data[0], "base64"));
+    } catch {
+      return null;
+    }
+  }
+  return toUint8Array(data);
+}
+
+function readUint64LE(bytes, offset) {
+  if (!bytes || offset + 8 > bytes.length) {
+    return null;
+  }
+
+  let value = 0n;
+  for (let i = 0; i < 8; i += 1) {
+    value += BigInt(bytes[offset + i]) << (8n * BigInt(i));
+  }
+  return value;
+}
+
+async function loadMintDecimalsByMint(connection, mintAddresses) {
+  const decimalsByMint = new Map();
+  if (
+    !Array.isArray(mintAddresses) ||
+    !mintAddresses.length ||
+    !connection ||
+    typeof connection.getMultipleAccountsInfo !== "function"
+  ) {
+    return decimalsByMint;
+  }
+
+  const mintPublicKeys = [];
+  const mintAddressByPublicKey = new Map();
+  for (const mintAddress of mintAddresses) {
+    try {
+      const publicKey = new PublicKey(mintAddress);
+      mintPublicKeys.push(publicKey);
+      mintAddressByPublicKey.set(publicKey.toBase58(), mintAddress);
+    } catch {
+      continue;
+    }
+  }
+
+  for (let index = 0; index < mintPublicKeys.length; index += MAX_MULTIPLE_ACCOUNTS) {
+    const chunk = mintPublicKeys.slice(index, index + MAX_MULTIPLE_ACCOUNTS);
+    let accountInfos;
+    try {
+      accountInfos = await connection.getMultipleAccountsInfo(chunk);
+    } catch {
+      continue;
+    }
+
+    for (let accountIndex = 0; accountIndex < chunk.length; accountIndex += 1) {
+      const mintAddress = mintAddressByPublicKey.get(chunk[accountIndex].toBase58());
+      if (!mintAddress) {
+        continue;
+      }
+
+      const decimals = parseMintDecimals(accountInfos?.[accountIndex]);
+      if (!Number.isInteger(decimals) || decimals < 0) {
+        continue;
+      }
+
+      decimalsByMint.set(mintAddress, decimals);
+    }
+  }
+
+  return decimalsByMint;
+}
+
+function parseMintDecimals(accountInfo) {
+  const bytes = toUint8Array(accountInfo?.data);
+  if (!bytes || bytes.length <= 44) {
+    return null;
+  }
+
+  return Number(bytes[44]);
+}
+
+function toPublicKeyText(value) {
+  if (value instanceof PublicKey) {
+    return value.toBase58();
+  }
+
+  const text = String(value || "").trim();
+  if (!text || text === "[object Object]") {
+    return "";
+  }
+  return text;
 }
 
 async function fetchTokenMetadataJsonByMint(metadataByMint, options = {}) {
